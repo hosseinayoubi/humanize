@@ -5,27 +5,48 @@ import { prisma } from "@/lib/prisma"
 import { humanizeText } from "@/lib/claude"
 import { clampTier, estimateCostUsd, monthStart, TIER_LIMITS, wordCount } from "@/lib/auth"
 
+export const dynamic = "force-dynamic"
+
 export async function POST(req: NextRequest) {
   try {
     const supabase = createRouteHandlerClient({ cookies })
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) return NextResponse.json({ success: false, error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 })
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+
+    if (!session)
+      return NextResponse.json(
+        { success: false, error: "Unauthorized", code: "UNAUTHORIZED" },
+        { status: 401 },
+      )
 
     const body = await req.json().catch(() => null)
     const text = body?.text
+
     if (!text || typeof text !== "string" || text.trim().length === 0) {
-      return NextResponse.json({ success: false, error: "Invalid input text", code: "INVALID_INPUT" }, { status: 400 })
+      return NextResponse.json(
+        { success: false, error: "Invalid input text", code: "INVALID_INPUT" },
+        { status: 400 },
+      )
     }
 
     const wc = wordCount(text)
-    if (wc < 50) return NextResponse.json({ success: false, error: "Text must be at least 50 words", code: "TEXT_TOO_SHORT" }, { status: 400 })
-    if (wc > 10000) return NextResponse.json({ success: false, error: "Text must not exceed 10,000 words", code: "TEXT_TOO_LONG" }, { status: 400 })
+    if (wc < 50)
+      return NextResponse.json(
+        { success: false, error: "Text must be at least 50 words", code: "TEXT_TOO_SHORT" },
+        { status: 400 },
+      )
+    if (wc > 10000)
+      return NextResponse.json(
+        { success: false, error: "Text must not exceed 10,000 words", code: "TEXT_TOO_LONG" },
+        { status: 400 },
+      )
 
     const email = session.user.email ?? "unknown@example.com"
     const user = await prisma.user.upsert({
       where: { id: session.user.id },
       update: { email },
-      create: { id: session.user.id, email, tier: "free" }
+      create: { id: session.user.id, email, tier: "free" },
     })
 
     const tier = clampTier(user.tier)
@@ -34,31 +55,53 @@ export async function POST(req: NextRequest) {
     const start = monthStart(new Date())
     const agg = await prisma.usage.aggregate({
       where: { userId: user.id, createdAt: { gte: start } },
-      _sum: { wordsProcessed: true }
+      _sum: { wordsProcessed: true },
     })
     const used = agg._sum.wordsProcessed ?? 0
 
     if (used + wc > limit) {
-      return NextResponse.json({ success: false, error: "Monthly limit exceeded. Upgrade to process more words.", code: "LIMIT_EXCEEDED", wordsUsed: used, wordsLimit: limit }, { status: 429 })
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Monthly limit exceeded. Upgrade to process more words.",
+          code: "LIMIT_EXCEEDED",
+          wordsUsed: used,
+          wordsLimit: limit,
+        },
+        { status: 429 },
+      )
     }
 
     let humanized = ""
-    try { humanized = await humanizeText(text) }
-    catch (e) {
+    try {
+      humanized = await humanizeText(text)
+    } catch (e) {
       console.error("Claude API error:", e)
-      return NextResponse.json({ success: false, error: "Claude API request failed", code: "CLAUDE_API_ERROR" }, { status: 500 })
+      return NextResponse.json(
+        { success: false, error: "Claude API request failed", code: "CLAUDE_API_ERROR" },
+        { status: 500 },
+      )
     }
 
     const cost = estimateCostUsd(wc)
 
     await prisma.$transaction([
       prisma.usage.create({ data: { userId: user.id, wordsProcessed: wc, cost } }),
-      prisma.text.create({ data: { userId: user.id, originalText: text, humanizedText: humanized, wordCount: wc } })
+      prisma.text.create({ data: { userId: user.id, originalText: text, humanizedText: humanized, wordCount: wc } }),
     ])
 
-    return NextResponse.json({ success: true, humanizedText: humanized, wordCount: wc, wordsRemaining: Math.max(0, limit - (used + wc)), cost: Number(cost) })
+    return NextResponse.json({
+      success: true,
+      humanizedText: humanized,
+      wordCount: wc,
+      wordsRemaining: Math.max(0, limit - (used + wc)),
+      cost: Number(cost),
+    })
   } catch (error) {
     console.error("Humanize API Error:", error)
-    return NextResponse.json({ success: false, error: "Internal server error", code: "SERVER_ERROR" }, { status: 500 })
+    return NextResponse.json(
+      { success: false, error: "Internal server error", code: "SERVER_ERROR" },
+      { status: 500 },
+    )
   }
 }
