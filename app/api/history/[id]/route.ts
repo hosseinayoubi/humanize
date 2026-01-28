@@ -5,30 +5,37 @@ import { prisma } from "@/lib/prisma"
 
 export const dynamic = "force-dynamic"
 
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
     const supabase = createRouteHandlerClient({ cookies })
     const {
       data: { session },
     } = await supabase.auth.getSession()
 
-    if (!session)
+    if (!session) {
       return NextResponse.json(
         { success: false, error: "Unauthorized", code: "UNAUTHORIZED" },
-        { status: 401 },
+        { status: 401 }
       )
+    }
 
     const row = await prisma.text.findUnique({ where: { id: params.id } })
-    if (!row)
+    if (!row) {
       return NextResponse.json(
         { success: false, error: "Text not found", code: "TEXT_NOT_FOUND" },
-        { status: 404 },
+        { status: 404 }
       )
-    if (row.userId !== session.user.id)
+    }
+
+    if (row.userId !== session.user.id) {
       return NextResponse.json(
         { success: false, error: "Forbidden", code: "FORBIDDEN" },
-        { status: 403 },
+        { status: 403 }
       )
+    }
 
     await prisma.text.delete({ where: { id: params.id } })
     return NextResponse.json({ success: true, message: "Text deleted successfully" })
@@ -36,7 +43,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
     console.error("Delete Text API Error:", error)
     return NextResponse.json(
       { success: false, error: "Server error", code: "SERVER_ERROR" },
-      { status: 500 },
+      { status: 500 }
     )
   }
 }
