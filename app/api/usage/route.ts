@@ -4,17 +4,26 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 import { prisma } from "@/lib/prisma"
 import { clampTier, monthStart, nextMonthStart, TIER_LIMITS } from "@/lib/auth"
 
+export const dynamic = "force-dynamic"
+
 export async function GET() {
   try {
     const supabase = createRouteHandlerClient({ cookies })
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) return NextResponse.json({ success: false, error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 })
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+
+    if (!session)
+      return NextResponse.json(
+        { success: false, error: "Unauthorized", code: "UNAUTHORIZED" },
+        { status: 401 },
+      )
 
     const email = session.user.email ?? "unknown@example.com"
     const user = await prisma.user.upsert({
       where: { id: session.user.id },
       update: { email },
-      create: { id: session.user.id, email, tier: "free" }
+      create: { id: session.user.id, email, tier: "free" },
     })
 
     const tier = clampTier(user.tier)
@@ -23,15 +32,27 @@ export async function GET() {
     const start = monthStart(new Date())
     const agg = await prisma.usage.aggregate({
       where: { userId: user.id, createdAt: { gte: start } },
-      _sum: { wordsProcessed: true }
+      _sum: { wordsProcessed: true },
     })
+
     const used = agg._sum.wordsProcessed ?? 0
     const remaining = Math.max(0, limit - used)
     const pct = Math.round((used / limit) * 100)
 
-    return NextResponse.json({ success: true, tier, wordsUsed: used, wordsLimit: limit, wordsRemaining: remaining, percentageUsed: pct, resets: nextMonthStart(new Date()).toISOString() })
+    return NextResponse.json({
+      success: true,
+      tier,
+      wordsUsed: used,
+      wordsLimit: limit,
+      wordsRemaining: remaining,
+      percentageUsed: pct,
+      resets: nextMonthStart(new Date()).toISOString(),
+    })
   } catch (error) {
     console.error("Usage API Error:", error)
-    return NextResponse.json({ success: false, error: "Server error", code: "SERVER_ERROR" }, { status: 500 })
+    return NextResponse.json(
+      { success: false, error: "Server error", code: "SERVER_ERROR" },
+      { status: 500 },
+    )
   }
 }
