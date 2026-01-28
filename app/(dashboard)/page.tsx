@@ -1,8 +1,7 @@
-export const dynamic = "force-dynamic"
-export const revalidate = 0
+export const dynamic = "force-dynamic";
 
-import UsageMeter from "@/components/usage-meter"
-import HumanizerForm from "@/components/humanizer-form"
+import UsageMeter from "@/components/usage-meter";
+import HumanizerForm from "@/components/humanizer-form";
 
 export default function DashboardPage() {
   return (
@@ -10,5 +9,5 @@ export default function DashboardPage() {
       <UsageMeter />
       <HumanizerForm />
     </div>
-  )
+  );
 }
