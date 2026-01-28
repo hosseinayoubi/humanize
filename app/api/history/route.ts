@@ -12,11 +12,12 @@ export async function GET(req: NextRequest) {
       data: { session },
     } = await supabase.auth.getSession()
 
-    if (!session)
+    if (!session) {
       return NextResponse.json(
         { success: false, error: "Unauthorized", code: "UNAUTHORIZED" },
-        { status: 401 },
+        { status: 401 }
       )
+    }
 
     const { searchParams } = new URL(req.url)
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10))
@@ -29,13 +30,7 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "desc" },
       skip,
       take: limit,
-      select: {
-        id: true,
-        originalText: true,
-        humanizedText: true,
-        wordCount: true,
-        createdAt: true,
-      },
+      select: { id: true, originalText: true, humanizedText: true, wordCount: true, createdAt: true },
     })
 
     return NextResponse.json({
@@ -47,7 +42,7 @@ export async function GET(req: NextRequest) {
     console.error("History API Error:", error)
     return NextResponse.json(
       { success: false, error: "Server error", code: "SERVER_ERROR" },
-      { status: 500 },
+      { status: 500 }
     )
   }
 }
