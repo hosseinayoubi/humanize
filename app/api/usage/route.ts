@@ -3,7 +3,6 @@ import { cookies } from "next/headers"
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 import { prisma } from "@/lib/prisma"
 import { clampTier, monthStart, nextMonthStart, TIER_LIMITS } from "@/lib/auth"
-export const dynamic = "force-dynamic"
 
 export const dynamic = "force-dynamic"
 
