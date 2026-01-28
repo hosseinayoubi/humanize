@@ -8,13 +8,15 @@ datasource db {
 }
 
 model User {
-  id        String   @id
+  id        String   @id @default(cuid())
   email     String   @unique
-  tier      String   @default("free")
+  tier      String   @default("free") // "free", "basic", "pro"
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
   usage     Usage[]
   texts     Text[]
+
   @@map("users")
 }
 
@@ -24,7 +26,9 @@ model Usage {
   wordsProcessed Int
   cost           Decimal  @db.Decimal(10, 4)
   createdAt      DateTime @default(now())
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
   @@map("usage")
 }
@@ -36,7 +40,9 @@ model Text {
   humanizedText String   @db.Text
   wordCount     Int
   createdAt     DateTime @default(now())
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
   @@map("texts")
 }
