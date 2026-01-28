@@ -1,33 +1,16 @@
-import { ReactNode } from "react";
-import { cookies } from "next/headers";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
-import { redirect } from "next/navigation";
+export const dynamic = "force-dynamic"
+export const revalidate = 0
 
-/**
- * IMPORTANT:
- * This forces Next.js to render this layout dynamically
- * because Supabase auth relies on cookies/session.
- */
-export const dynamic = "force-dynamic";
-
-export default async function DashboardLayout({
-  children,
-}: {
-  children: ReactNode;
-}) {
-  const supabase = createServerComponentClient({ cookies });
-
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  if (!session) {
-    redirect("/login");
-  }
-
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <h1 className="text-2xl font-semibold">Dashboard</h1>
+        <p className="text-sm text-muted-foreground">
+          Rewrite English text to sound more natural.
+        </p>
+      </div>
       {children}
     </div>
-  );
+  )
 }
