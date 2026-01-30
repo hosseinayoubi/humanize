@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma"
 import { clampTier, monthStart, nextMonthStart, TIER_LIMITS } from "@/lib/auth"
 
 export const dynamic = "force-dynamic"
+export const runtime = "nodejs"
 
 export async function GET() {
   try {
@@ -19,12 +20,21 @@ export async function GET() {
         { status: 401 },
       )
 
+    // ✅ جایگزین upsert: PgBouncer/Pooler-friendly
     const email = session.user.email ?? "unknown@example.com"
-    const user = await prisma.user.upsert({
-      where: { id: session.user.id },
-      update: { email },
-      create: { id: session.user.id, email, tier: "free" },
-    })
+    const userId = session.user.id
+
+    let user = await prisma.user.findUnique({ where: { id: userId } })
+    if (!user) {
+      user = await prisma.user.create({
+        data: { id: userId, email, tier: "free" },
+      })
+    } else if (user.email !== email) {
+      user = await prisma.user.update({
+        where: { id: userId },
+        data: { email },
+      })
+    }
 
     const tier = clampTier(user.tier)
     const limit = TIER_LIMITS[tier]
