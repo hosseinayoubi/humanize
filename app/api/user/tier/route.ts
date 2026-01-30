@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma"
 import { clampTier } from "@/lib/auth"
 
 export const dynamic = "force-dynamic"
+export const runtime = "nodejs"
 
 export async function PATCH(req: NextRequest) {
   try {
@@ -22,12 +23,22 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json().catch(() => null)
     const tier = clampTier(body?.tier)
 
+    // ✅ جایگزین upsert: PgBouncer/Pooler-friendly
     const email = session.user.email ?? "unknown@example.com"
-    const user = await prisma.user.upsert({
-      where: { id: session.user.id },
-      update: { email, tier },
-      create: { id: session.user.id, email, tier },
-    })
+    const userId = session.user.id
+
+    let user = await prisma.user.findUnique({ where: { id: userId } })
+    if (!user) {
+      user = await prisma.user.create({
+        data: { id: userId, email, tier },
+      })
+    } else {
+      // ایمیل و tier را آپدیت کن (ایمن و ساده)
+      user = await prisma.user.update({
+        where: { id: userId },
+        data: { email, tier },
+      })
+    }
 
     return NextResponse.json({ success: true, tier: user.tier, message: "Tier updated successfully" })
   } catch (error) {
