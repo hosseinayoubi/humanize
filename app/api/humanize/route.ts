@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from "next/server"
 import { cookies } from "next/headers"
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
+import { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { humanizeText } from "@/lib/claude"
 import { clampTier, estimateCostUsd, monthStart, TIER_LIMITS, wordCount } from "@/lib/auth"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
+
+function safeEmail(userId: string, email?: string | null) {
+  // ✅ همیشه یونیک؛ جلوی unique constraint می‌گیرد
+  return email && email.includes("@") ? email : `${userId}@no-email.local`
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -43,9 +49,9 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       )
 
-    // ✅ جایگزین upsert: PgBouncer/Pooler-friendly
-    const email = session.user.email ?? "unknown@example.com"
+    // ✅ PgBouncer/Pooler-friendly (بدون upsert)
     const userId = session.user.id
+    const email = safeEmail(userId, session.user.email)
 
     let user = await prisma.user.findUnique({ where: { id: userId } })
     if (!user) {
@@ -93,11 +99,14 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const cost = estimateCostUsd(wc)
+    const costNumber = estimateCostUsd(wc)
+    const cost = new Prisma.Decimal(costNumber)
 
     await prisma.$transaction([
       prisma.usage.create({ data: { userId: user.id, wordsProcessed: wc, cost } }),
-      prisma.text.create({ data: { userId: user.id, originalText: text, humanizedText: humanized, wordCount: wc } }),
+      prisma.text.create({
+        data: { userId: user.id, originalText: text, humanizedText: humanized, wordCount: wc },
+      }),
     ])
 
     return NextResponse.json({
@@ -105,7 +114,7 @@ export async function POST(req: NextRequest) {
       humanizedText: humanized,
       wordCount: wc,
       wordsRemaining: Math.max(0, limit - (used + wc)),
-      cost: Number(cost),
+      cost: Number(costNumber),
     })
   } catch (error) {
     console.error("Humanize API Error:", error)
