@@ -1,45 +1,100 @@
 import Anthropic from "@anthropic-ai/sdk"
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
+const anthropic = new Anthropic({
+  apiKey: process.env.CLAUDE_API_KEY!,
+})
 
-const MODEL = process.env.ANTHROPIC_MODEL || "claude-opus-4-5-20251101"
-
-function pickText(content: any): string {
-  const first = Array.isArray(content) ? content[0] : null
-  return first?.type === "text" ? first.text : ""
-}
-
-export async function humanizeText(text: string): Promise<string> {
-  const analysisResponse = await anthropic.messages.create({
-    model: MODEL,
-    max_tokens: 900,
-    temperature: 0.4,
-    messages: [{ role: "user", content: "Analyze the style and clarity issues briefly:\n\n" + text }],
-  })
-  const analysis = pickText(analysisResponse.content)
-
-  const rewriteResponse = await anthropic.messages.create({
-    model: MODEL,
-    max_tokens: 3500,
-    temperature: 0.85,
+export async function humanizeText(text: string) {
+  // 1) ANALYZE — سبک و لحن متن را بفهمد، نه بازنویسی کند
+  const analysis = await anthropic.messages.create({
+    model: "claude-3-5-sonnet-20241022",
+    max_tokens: 300,
     messages: [
       {
         role: "user",
-        content:
-          "Rewrite this English text so it sounds natural, human, and fluent. Keep meaning and key details.\n" +
-          "Vary sentence lengths; avoid repetitive phrasing; use contractions where appropriate.\n\n" +
-          "Analysis:\n" + analysis + "\n\nOriginal:\n" + text
-      }
+        content: `
+Analyze the following English text briefly.
+
+Focus on:
+- tone (formal / neutral / casual)
+- clarity issues
+- stiffness or over-polished parts
+
+Do NOT rewrite the text.
+Be concise.
+
+TEXT:
+${text}
+        `.trim(),
+      },
     ],
   })
-  const rewritten = pickText(rewriteResponse.content) || text
 
-  const polishResponse = await anthropic.messages.create({
-    model: MODEL,
-    max_tokens: 3500,
-    temperature: 0.6,
-    messages: [{ role: "user", content: "Polish this rewritten English text. Return only final text:\n\n" + rewritten }],
+  const analysisText =
+    analysis.content[0].type === "text"
+      ? analysis.content[0].text
+      : ""
+
+  // 2) REWRITE — بازنویسی اصلی، با حفظ صدا و نواقص انسانی
+  const rewrite = await anthropic.messages.create({
+    model: "claude-3-5-sonnet-20241022",
+    max_tokens: 2000,
+    messages: [
+      {
+        role: "user",
+        content: `
+Rewrite the following English text so it sounds natural, clear, and human-written.
+
+STRICT RULES:
+- Keep my original voice and level of formality
+- Preserve meaning exactly
+- Avoid generic filler phrases
+- Avoid over-smoothing or robotic flow
+- Keep some minor imperfections if they exist
+- Prefer concrete nouns and specific wording
+- Do NOT exaggerate or overstate claims
+- Do NOT add new ideas or conclusions
+
+Context about the original text:
+${analysisText}
+
+TEXT:
+${text}
+        `.trim(),
+      },
+    ],
   })
 
-  return pickText(polishResponse.content) || rewritten
+  const rewrittenText =
+    rewrite.content[0].type === "text"
+      ? rewrite.content[0].text
+      : ""
+
+  // 3) POLISH — فقط تمیزکاری نهایی، نه صیقل بیش‌ازحد
+  const polish = await anthropic.messages.create({
+    model: "claude-3-5-sonnet-20241022",
+    max_tokens: 2000,
+    messages: [
+      {
+        role: "user",
+        content: `
+Lightly polish the following rewritten English text.
+
+Rules:
+- Improve readability only where needed
+- Do NOT make it sound fancy or academic unless it already is
+- Keep sentence length variation
+- Avoid perfect symmetry or overly balanced phrasing
+- Return ONLY the final text
+
+TEXT:
+${rewrittenText}
+        `.trim(),
+      },
+    ],
+  })
+
+  return polish.content[0].type === "text"
+    ? polish.content[0].text
+    : rewrittenText
 }
