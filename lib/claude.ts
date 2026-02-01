@@ -1,15 +1,14 @@
 import Anthropic from "@anthropic-ai/sdk"
+import { retry, withTimeout } from "@/lib/stability"
 
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-opus-4-5-20251101"
 
 function getClient() {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey || apiKey.trim().length < 10) {
-    // اینجا اگر key واقعاً ست نشده باشد، هیچ کدی نمی‌تواند Claude را صدا بزند.
-    // ولی چون گفتی قبلاً کار می‌کرد، احتمالاً env درست است.
+  const key = process.env.ANTHROPIC_API_KEY
+  if (!key || key.trim().length < 10) {
     throw new Error("ANTHROPIC_API_KEY is missing in runtime environment.")
   }
-  return new Anthropic({ apiKey })
+  return new Anthropic({ apiKey: key })
 }
 
 function pickText(content: any): string {
@@ -19,21 +18,6 @@ function pickText(content: any): string {
     .map((b: any) => b.text)
     .join("")
     .trim()
-}
-
-function isRetryable(status?: number) {
-  return status === 408 || status === 409 || status === 429 || status === 500 || status === 502 || status === 503 || status === 504 || status === 529
-}
-
-function sleep(ms: number) {
-  return new Promise((r) => setTimeout(r, ms))
-}
-
-async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
-  return await Promise.race([
-    p,
-    new Promise<T>((_, rej) => setTimeout(() => rej(new Error(`Timeout after ${ms}ms`)), ms)),
-  ])
 }
 
 export async function humanizeText(text: string): Promise<string> {
@@ -48,11 +32,10 @@ export async function humanizeText(text: string): Promise<string> {
     "TEXT:\n" + text
 
   const client = getClient()
-  const maxAttempts = 4
 
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      const res = await withTimeout(
+  const res = await retry(
+    async () =>
+      await withTimeout(
         client.messages.create({
           model: MODEL,
           max_tokens: 1800,
@@ -60,20 +43,10 @@ export async function humanizeText(text: string): Promise<string> {
           messages: [{ role: "user", content: prompt }],
         }),
         45_000,
-      )
+      ),
+    { attempts: 4, baseDelayMs: 500, maxDelayMs: 6000 },
+  )
 
-      const out = pickText((res as any).content)
-      return out || text
-    } catch (err: any) {
-      const status = err?.status || err?.response?.status
-      if (attempt < maxAttempts && isRetryable(status)) {
-        await sleep(700 * Math.pow(2, attempt - 1))
-        continue
-      }
-      // throw to be handled in route
-      throw err
-    }
-  }
-
-  return text
+  const out = pickText((res as any).content)
+  return out || text
 }
