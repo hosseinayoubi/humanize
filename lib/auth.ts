@@ -30,7 +30,8 @@ export function nextMonthStart(d = new Date()) {
   return m
 }
 
-export function estimateCostUsd(words: number): string {
+// ✅ عدد برمی‌گرداند (برای Prisma Decimal امن‌تر)
+export function estimateCostUsd(words: number): number {
   const cost = (words / 1000) * 1.2
-  return cost.toFixed(4)
+  return Math.round(cost * 10000) / 10000 // 4 decimals
 }
