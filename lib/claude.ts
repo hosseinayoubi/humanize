@@ -2,17 +2,17 @@ import Anthropic from "@anthropic-ai/sdk"
 
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-opus-4-5-20251101"
 
-function getApiKey() {
-  const key = process.env.ANTHROPIC_API_KEY
-  if (!key || key.trim().length < 10) {
-    throw new Error("Missing ANTHROPIC_API_KEY (check your deploy env / .env.local).")
+function getClient() {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey || apiKey.trim().length < 10) {
+    // اینجا اگر key واقعاً ست نشده باشد، هیچ کدی نمی‌تواند Claude را صدا بزند.
+    // ولی چون گفتی قبلاً کار می‌کرد، احتمالاً env درست است.
+    throw new Error("ANTHROPIC_API_KEY is missing in runtime environment.")
   }
-  return key
+  return new Anthropic({ apiKey })
 }
 
-const anthropic = new Anthropic({ apiKey: getApiKey() })
-
-function pickAllText(content: any): string {
+function pickText(content: any): string {
   if (!Array.isArray(content)) return ""
   return content
     .filter((b: any) => b?.type === "text" && typeof b.text === "string")
@@ -40,39 +40,38 @@ export async function humanizeText(text: string): Promise<string> {
   const prompt =
     "You are a professional English editor.\n" +
     "Rewrite the text to sound natural, human, and fluent.\n" +
-    "- Keep meaning and key details.\n" +
+    "- Keep the original meaning and key details.\n" +
     "- Avoid repetitive phrasing.\n" +
-    "- Vary sentence length.\n" +
+    "- Vary sentence lengths.\n" +
     "- Use contractions where appropriate.\n" +
     "Return ONLY the final rewritten text.\n\n" +
     "TEXT:\n" + text
 
+  const client = getClient()
   const maxAttempts = 4
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       const res = await withTimeout(
-        anthropic.messages.create({
+        client.messages.create({
           model: MODEL,
           max_tokens: 1800,
           temperature: 0.7,
           messages: [{ role: "user", content: prompt }],
         }),
-        45_000, // 45s timeout
+        45_000,
       )
 
-      const out = pickAllText((res as any).content)
+      const out = pickText((res as any).content)
       return out || text
     } catch (err: any) {
       const status = err?.status || err?.response?.status
-      const msg = err?.message || String(err)
-
       if (attempt < maxAttempts && isRetryable(status)) {
-        await sleep(800 * Math.pow(2, attempt - 1)) // 0.8s, 1.6s, 3.2s
+        await sleep(700 * Math.pow(2, attempt - 1))
         continue
       }
-
-      throw new Error(`Anthropic failed (status=${status ?? "unknown"}): ${msg}`)
+      // throw to be handled in route
+      throw err
     }
   }
 
