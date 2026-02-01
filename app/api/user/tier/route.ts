@@ -32,14 +32,9 @@ export async function PATCH(req: NextRequest) {
 
     let user = await prisma.user.findUnique({ where: { id: userId } })
     if (!user) {
-      user = await prisma.user.create({
-        data: { id: userId, email, tier },
-      })
+      user = await prisma.user.create({ data: { id: userId, email, tier } })
     } else {
-      user = await prisma.user.update({
-        where: { id: userId },
-        data: { email, tier },
-      })
+      user = await prisma.user.update({ where: { id: userId }, data: { email, tier } })
     }
 
     return NextResponse.json({ success: true, tier: user.tier, message: "Tier updated successfully" })
