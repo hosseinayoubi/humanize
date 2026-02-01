@@ -3,13 +3,14 @@ generator client {
 }
 
 datasource db {
- provider  = "postgresql"
- url       = env("DATABASE_URL")
- directUrl = env("DIRECT_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
-  id        String   @id @default(cuid())
+  // ✅ ما id را از Supabase می‌گیریم؛ پس default لازم نیست
+  id        String   @id
   email     String   @unique
   tier      String   @default("free") // "free", "basic", "pro"
   createdAt DateTime @default(now())
