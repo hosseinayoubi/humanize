@@ -21,32 +21,20 @@ function extractText(content: any): string {
 
 export async function humanizeText(text: string): Promise<string> {
   const prompt = `
-Rewrite the text below in an academic, logically structured style while preserving the original meaning.
+Rewrite the text below in a more academic, logically structured style while preserving the original meaning.
 
-Target tone:
-- Academic and evidence-oriented (but not overly formal or inflated).
-- Clear, precise, and logically coherent.
-- Natural human writing: varied sentence length, no mechanical patterns.
+Requirements:
+- Preserve facts and key details. Do not invent new facts.
+- Improve clarity, coherence, and argument flow.
+- Prefer precise wording; avoid vague phrasing.
+- Use cautious academic language where appropriate (e.g., "suggests", "may", "is likely") without excessive hedging.
+- Keep a natural human tone (not casual, not overly ornate). Vary sentence length without sounding mechanical.
+- No headings like "Conclusion" or "In summary." End naturally.
 
-Core requirements:
-- Preserve all factual claims and key details. Do not invent new facts.
-- Improve clarity, argument flow, and readability.
-- Prefer specific wording over vague phrasing.
-- Use cautious academic language where appropriate (e.g., “suggests,” “may,” “is likely”) without hedging excessively.
-- Keep paragraphs organized: each paragraph should have one main idea, and transitions should feel natural.
-
-Style constraints:
-- Avoid casual spoken language, slang, filler words, or humor.
-- Avoid rigid templates and robotic transitions.
-- Do not add headings like “Conclusion” or “In summary.” End naturally once the point is complete.
-- If the original text has lists, keep them only if they improve clarity; otherwise integrate them into prose.
-
-Forbidden words (do not use any of these):
+Strictly avoid these words:
 delve, tapestry, landscape, testament, leverage, intersection, fostering, nuanced, game-changer, symphony, comprehensive, realm, underscores, crucial, paramount
 
-Output rules:
-- Return only the rewritten text (no commentary, no notes).
-- Keep the approximate length similar unless shortening clearly improves clarity.
+Return only the rewritten text.
 
 TEXT:
 ${text}
@@ -54,18 +42,12 @@ ${text}
 
   const client = getClient()
 
-  const response = await client.messages.create({
+  const res = await client.messages.create({
     model: MODEL,
     max_tokens: 2000,
     temperature: 0.35,
-    messages: [
-      {
-        role: "user",
-        content: prompt,
-      },
-    ],
+    messages: [{ role: "user", content: prompt }],
   })
 
-  const output = extractText(response.content)
-  return output || text
+  return extractText(res.content) || text
 }
