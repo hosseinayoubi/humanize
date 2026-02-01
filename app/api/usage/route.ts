@@ -9,16 +9,14 @@ export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
 function safeEmail(userId: string, email?: string | null) {
-  // ✅ هیچ‌وقت unknown@example.com برنگردون (unique می‌ترکونه)
+  // ✅ هیچ وقت unknown@example.com نذار (unique می‌ترکونه)
   return email && email.includes("@") ? email : `${userId}@no-email.local`
 }
 
 export async function GET() {
   try {
     const supabase = createRouteHandlerClient({ cookies })
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
+    const { data: { session } } = await supabase.auth.getSession()
 
     if (!session) {
       return NextResponse.json(
@@ -30,35 +28,27 @@ export async function GET() {
     const userId = session.user.id
     const email = safeEmail(userId, session.user.email)
 
-    // ✅ user sync (pooler/pgbouncer safe + retry)
-    const user = await retry(
-      async () => {
-        let u = await prisma.user.findUnique({ where: { id: userId } })
-        if (!u) {
-          // id رو خودت میدی → با schema فعلی سازگاره
-          u = await prisma.user.create({ data: { id: userId, email, tier: "free" } })
-        } else if (u.email !== email) {
-          u = await prisma.user.update({ where: { id: userId }, data: { email } })
-        }
-        return u
-      },
-      { attempts: 4, baseDelayMs: 300, maxDelayMs: 4000 },
-    )
+    const user = await retry(async () => {
+      let u = await prisma.user.findUnique({ where: { id: userId } })
+      if (!u) {
+        u = await prisma.user.create({ data: { id: userId, email, tier: "free" } })
+      } else if (u.email !== email) {
+        u = await prisma.user.update({ where: { id: userId }, data: { email } })
+      }
+      return u
+    }, { attempts: 4, baseDelayMs: 300, maxDelayMs: 4000 })
 
     const tier = clampTier(user.tier)
     const limit = TIER_LIMITS[tier]
 
-    const used = await retry(
-      async () => {
-        const start = monthStart(new Date())
-        const agg = await prisma.usage.aggregate({
-          where: { userId: user.id, createdAt: { gte: start } },
-          _sum: { wordsProcessed: true },
-        })
-        return agg._sum.wordsProcessed ?? 0
-      },
-      { attempts: 3, baseDelayMs: 250, maxDelayMs: 3000 },
-    )
+    const used = await retry(async () => {
+      const start = monthStart(new Date())
+      const agg = await prisma.usage.aggregate({
+        where: { userId: user.id, createdAt: { gte: start } },
+        _sum: { wordsProcessed: true },
+      })
+      return agg._sum.wordsProcessed ?? 0
+    }, { attempts: 3, baseDelayMs: 250, maxDelayMs: 3000 })
 
     const remaining = Math.max(0, limit - used)
     const pct = limit > 0 ? Math.round((used / limit) * 100) : 0
@@ -73,12 +63,7 @@ export async function GET() {
         percentageUsed: pct,
         resets: nextMonthStart(new Date()).toISOString(),
       },
-      {
-        status: 200,
-        headers: {
-          "Cache-Control": "no-store, max-age=0",
-        },
-      },
+      { status: 200, headers: { "Cache-Control": "no-store, max-age=0" } },
     )
   } catch (error) {
     console.error("Usage API Error:", error)
