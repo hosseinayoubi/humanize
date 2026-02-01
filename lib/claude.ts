@@ -21,33 +21,32 @@ function extractText(content: any): string {
 
 export async function humanizeText(text: string): Promise<string> {
   const prompt = `
-I need you to act as a distinct human persona — a knowledgeable enthusiast, not a professor — and rewrite the text below.
+Rewrite the text below in a clear, natural, and intellectually grounded way.
 
-The goal is to make it feel like something a real person would say out loud to a peer, not something carefully engineered. Think coffee shop energy. Slightly messy. Opinionated. Alive.
+The writing should sound like it comes from a thoughtful, well-informed person explaining an idea carefully — not casually chatting, but also not lecturing. Aim for a balanced tone: analytical, calm, and human.
 
-Guidelines (follow them naturally, not mechanically):
+Guidelines:
 
-- Write with an irregular rhythm. Long, winding sentences are fine — even run-on thoughts — followed by very short fragments.
-- Don’t stick to clean subject-verb-object patterns. Start sentences with words like “Honestly,” “But then again,” “Thinking about it,” or “So yeah,” when it feels right.
-- This is not neutral writing. Show mild bias, curiosity, skepticism, or enthusiasm. Hedge a little. Say “maybe,” “probably,” “I guess,” when appropriate.
-- Let the text feel human: small imperfections, side comments, tangents, half-finished thoughts.
-- Use em dashes — for asides or second thoughts.
-- Rhetorical questions are welcome, even if they don’t really get answered.
-- Use everyday language. Prefer simple, punchy words over fancy ones.
+- Use varied sentence lengths, but keep the rhythm controlled and intentional.
+- Prefer clarity and reasoning over emotion or storytelling.
+- It is fine to show mild judgment or interpretation, but avoid strong bias or exaggeration.
+- Use precise language, but do not sound academic or overly formal.
+- Avoid slang, filler words, or overly conversational phrases.
+- Transitions should feel natural, not formulaic.
+- Paragraphs may vary in length, but should follow a logical flow.
+- Small imperfections are acceptable, but the text should feel deliberate and coherent.
 
-Strictly avoid these words (do not use them at all):
+Strictly avoid these words:
 delve, tapestry, landscape, testament, leverage, intersection, fostering, nuanced, game-changer, symphony, comprehensive, realm, underscores, crucial, paramount
 
 Also avoid:
+- Casual spoken language
+- Humor or jokes
+- Rhetorical questions that add no meaning
 - Formal introductions or conclusions
-- Robotic transitions
-- Bullet-point thinking
-- Overly polished or academic tone
-- Perfectly balanced paragraphs
+- Bullet-point or list-style thinking
 
-Paragraphs should feel uneven. One might be long. The next might be a single line. That’s fine.
-
-Keep the original meaning. Change the voice.
+The goal is to preserve the original meaning while making the writing sound like it was produced by a competent human thinker — structured, reasoned, and natural.
 
 TEXT:
 ${text}
@@ -58,7 +57,7 @@ ${text}
   const response = await client.messages.create({
     model: MODEL,
     max_tokens: 1800,
-    temperature: 0.9,
+    temperature: 0.55,
     messages: [
       {
         role: "user",
