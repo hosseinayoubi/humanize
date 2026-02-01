@@ -7,6 +7,10 @@ import { clampTier, monthStart, nextMonthStart, TIER_LIMITS } from "@/lib/auth"
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
+function safeEmail(userId: string, email?: string | null) {
+  return email && email.includes("@") ? email : `${userId}@no-email.local`
+}
+
 export async function GET() {
   try {
     const supabase = createRouteHandlerClient({ cookies })
@@ -20,9 +24,8 @@ export async function GET() {
         { status: 401 },
       )
 
-    // ✅ جایگزین upsert: PgBouncer/Pooler-friendly
-    const email = session.user.email ?? "unknown@example.com"
     const userId = session.user.id
+    const email = safeEmail(userId, session.user.email)
 
     let user = await prisma.user.findUnique({ where: { id: userId } })
     if (!user) {
@@ -47,7 +50,7 @@ export async function GET() {
 
     const used = agg._sum.wordsProcessed ?? 0
     const remaining = Math.max(0, limit - used)
-    const pct = Math.round((used / limit) * 100)
+    const pct = limit > 0 ? Math.round((used / limit) * 100) : 0
 
     return NextResponse.json({
       success: true,
