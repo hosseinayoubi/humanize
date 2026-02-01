@@ -21,40 +21,38 @@ function extractText(content: any): string {
 
 export async function humanizeText(text: string): Promise<string> {
   const prompt = `
-Rewrite the text below. Your absolute priority is to bypass AI detection by sounding like a regular person who is a bit disorganized and informal. 
+Listen, I need you to rewrite this text and make it sound like an actual human wrote it. Not some AI trying to sound human - like genuinely human.
 
-**STRICT HUMAN-WRITING RULES:**
+Here's the vibe I'm going for:
 
-1. **Vary Sentence length AGGRESSIVELY:** - Start with a very short sentence. Then a long, rambling one. Then another short one. 
-   - Use sentence fragments (e.g., "Not really." or "Just my two cents.").
+Write like you're texting a friend or posting on Reddit. Mix short sentences with longer ones. Sometimes start with "And" or "But" because that's how people actually talk. Use contractions everywhere (don't, can't, it's, I'm).
 
-2. **The "Non-Expert" Tone:** - Use phrases like "I think," "I mean," "to be honest," "actually," and "kind of." 
-   - Don't be too polished. If a sentence is a bit "wordy," leave it that way.
+Throw in some casual phrases like "honestly," "I mean," "you know," "actually," or "to be honest." Add parentheses when you have a side thought (because that's what people do when they're writing casually). 
 
-3. **Break AI Patterns:** - NEVER use: "In conclusion," "Moreover," "Furthermore," "Firstly," "Delve," "Tapestry," "Landscape," "Pivotal," "Unlock," "Comprehensive."
-   - Do NOT use bullet points or numbered lists.
-   - Use "and" or "but" to start sentences occasionally.
+Don't be perfect. Let some sentences run a bit long. Use simple words - if you catch yourself using fancy vocabulary, swap it for something more everyday.
 
-4. **Add "Inner Monologue":** - Use parentheses to add a side thought (like this). It shows a human-like stream of consciousness.
+Absolutely avoid these AI tells:
+- No "Moreover" or "Furthermore" or "In conclusion"
+- Skip words like "delve," "leverage," "robust," "comprehensive," "landscape," "tapestry"
+- Don't make lists with bullet points or numbers
+- No perfectly structured paragraphs with topic sentences
 
-5. **Simulate a "Draft" Feel:** - Use contractions (don't, it's, can't) every single time. 
-   - Use simple, everyday words instead of fancy ones.
+Instead, just... flow. Like you're explaining something to someone while you're thinking it through. Maybe repeat yourself a bit. Maybe backtrack. That's human.
 
-**GOAL:** Make this sound like a post on a forum or a casual blog. NOT an essay. NOT an email.
+Make it feel like a first draft that someone wrote in one go, not a polished essay. Real people don't write perfectly the first time.
 
-TEXT:
+Here's the text:
 "${text}"
+
+Just rewrite it naturally. Don't overthink it.
 `.trim()
 
   const client = getClient()
-
   const response = await client.messages.create({
     model: MODEL,
     max_tokens: 2500,
-    // دما را روی 1.0 گذاشتم تا تصادفی بودن کلمات به اوج برسد
     temperature: 1.0,
-    // Top_p را روی 1.0 گذاشتم تا تنوع لغات محدود نشود
-    top_p: 1.0,
+    top_p: 0.95,
     messages: [
       {
         role: "user",
