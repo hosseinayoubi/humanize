@@ -7,6 +7,10 @@ import { clampTier } from "@/lib/auth"
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
+function safeEmail(userId: string, email?: string | null) {
+  return email && email.includes("@") ? email : `${userId}@no-email.local`
+}
+
 export async function PATCH(req: NextRequest) {
   try {
     const supabase = createRouteHandlerClient({ cookies })
@@ -23,9 +27,8 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json().catch(() => null)
     const tier = clampTier(body?.tier)
 
-    // ✅ جایگزین upsert: PgBouncer/Pooler-friendly
-    const email = session.user.email ?? "unknown@example.com"
     const userId = session.user.id
+    const email = safeEmail(userId, session.user.email)
 
     let user = await prisma.user.findUnique({ where: { id: userId } })
     if (!user) {
@@ -33,7 +36,6 @@ export async function PATCH(req: NextRequest) {
         data: { id: userId, email, tier },
       })
     } else {
-      // ایمیل و tier را آپدیت کن (ایمن و ساده)
       user = await prisma.user.update({
         where: { id: userId },
         data: { email, tier },
