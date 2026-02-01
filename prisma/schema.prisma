@@ -9,10 +9,9 @@ datasource db {
 }
 
 model User {
-  // ✅ ما id را از Supabase می‌گیریم؛ پس default لازم نیست
   id        String   @id
   email     String   @unique
-  tier      String   @default("free") // "free", "basic", "pro"
+  tier      String   @default("free")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
