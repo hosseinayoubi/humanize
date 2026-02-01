@@ -1,10 +1,12 @@
 import Anthropic from "@anthropic-ai/sdk"
 
-const MODEL = process.env.ANTHROPIC_MODEL || "claude-3-5-sonnet-20240620"
+const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514"
 
 function getClient() {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey || apiKey.trim().length < 10) {
+    console.error("❌ ANTHROPIC_API_KEY is missing or invalid!")
+    console.error("Current value:", apiKey ? `${apiKey.substring(0, 10)}...` : "undefined")
     throw new Error("ANTHROPIC_API_KEY is missing in runtime environment.")
   }
   return new Anthropic({ apiKey })
@@ -55,20 +57,41 @@ Original text:
 Rewrite it like a real person would write it in one sitting. Go.
 `.trim()
 
-  const client = getClient()
-  const response = await client.messages.create({
-    model: MODEL,
-    max_tokens: 2500,
-    temperature: 1.0,
-    top_p: 0.95,
-    messages: [
-      {
-        role: "user",
-        content: prompt,
-      },
-    ],
-  })
+  try {
+    const client = getClient()
+    console.log("✅ Claude client created successfully")
+    console.log("📝 Sending text to Claude (length:", text.length, "chars)")
+    
+    const response = await client.messages.create({
+      model: MODEL,
+      max_tokens: 2500,
+      temperature: 1.0,
+      top_p: 0.95,
+      messages: [
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+    })
 
-  const output = extractText(response.content)
-  return output || text
+    console.log("✅ Received response from Claude")
+    const output = extractText(response.content)
+    
+    if (!output) {
+      console.error("❌ No text extracted from Claude response")
+      console.error("Response content:", JSON.stringify(response.content))
+      return text
+    }
+    
+    console.log("✅ Successfully humanized text (output length:", output.length, "chars)")
+    return output
+  } catch (error: any) {
+    console.error("❌ Claude API Error:")
+    console.error("Error name:", error?.name)
+    console.error("Error message:", error?.message)
+    console.error("Error status:", error?.status)
+    console.error("Error type:", error?.type)
+    throw error
+  }
 }
