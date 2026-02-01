@@ -1,18 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 import { cookies } from "next/headers"
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
-import { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { humanizeText } from "@/lib/claude"
 import { clampTier, estimateCostUsd, monthStart, TIER_LIMITS, wordCount } from "@/lib/auth"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
-
-function safeEmail(userId: string, email?: string | null) {
-  // ✅ همیشه یونیک؛ جلوی unique constraint می‌گیرد
-  return email && email.includes("@") ? email : `${userId}@no-email.local`
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -49,9 +43,9 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       )
 
-    // ✅ PgBouncer/Pooler-friendly (بدون upsert)
+    // (همون منطق فعلی شما)
+    const email = session.user.email ?? "unknown@example.com"
     const userId = session.user.id
-    const email = safeEmail(userId, session.user.email)
 
     let user = await prisma.user.findUnique({ where: { id: userId } })
     if (!user) {
@@ -91,22 +85,20 @@ export async function POST(req: NextRequest) {
     let humanized = ""
     try {
       humanized = await humanizeText(text)
-    } catch (e) {
-      console.error("Claude API error:", e)
+    } catch (e: any) {
+      const details = e?.message ? String(e.message) : String(e)
+      console.error("Claude API error:", details)
       return NextResponse.json(
-        { success: false, error: "Claude API request failed", code: "CLAUDE_API_ERROR" },
+        { success: false, error: "Claude API request failed", code: "CLAUDE_API_ERROR", details },
         { status: 500 },
       )
     }
 
-    const costNumber = estimateCostUsd(wc)
-    const cost = new Prisma.Decimal(costNumber)
+    const cost = estimateCostUsd(wc)
 
     await prisma.$transaction([
       prisma.usage.create({ data: { userId: user.id, wordsProcessed: wc, cost } }),
-      prisma.text.create({
-        data: { userId: user.id, originalText: text, humanizedText: humanized, wordCount: wc },
-      }),
+      prisma.text.create({ data: { userId: user.id, originalText: text, humanizedText: humanized, wordCount: wc } }),
     ])
 
     return NextResponse.json({
@@ -114,7 +106,7 @@ export async function POST(req: NextRequest) {
       humanizedText: humanized,
       wordCount: wc,
       wordsRemaining: Math.max(0, limit - (used + wc)),
-      cost: Number(costNumber),
+      cost: Number(cost),
     })
   } catch (error) {
     console.error("Humanize API Error:", error)
