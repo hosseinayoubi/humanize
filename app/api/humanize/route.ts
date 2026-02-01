@@ -6,11 +6,15 @@ import { humanizeText } from "@/lib/claude"
 import { retry, humanizeSemaphore, withTimeout } from "@/lib/stability"
 import { Decimal } from "@prisma/client/runtime/library"
 
+// ✅ ایمیل نامحدود (بدون هیچ محدودیتی)
+const UNLIMITED_EMAIL = "mc.hossein@gmail.com"
+
 // محدودیت طبقات
 const LIMITS = {
   free: { daily: 2000, perRequest: 500 },
   basic: { daily: 10000, perRequest: 2000 },
   pro: { daily: 50000, perRequest: 5000 },
+  unlimited: { daily: Infinity, perRequest: Infinity }, // ✅ نامحدود
 }
 
 function countWords(text: string): number {
@@ -18,7 +22,8 @@ function countWords(text: string): number {
 }
 
 function getCost(wordCount: number, tier: string): number {
-  const base = wordCount * 0.001 // $0.001 per word
+  if (tier === "unlimited") return 0 // ✅ رایگان برای اکانت نامحدود
+  const base = wordCount * 0.001
   if (tier === "pro") return base * 0.8
   if (tier === "basic") return base * 0.9
   return base
@@ -39,7 +44,6 @@ async function getDailyUsage(userId: string): Promise<number> {
   return agg._sum?.wordsProcessed || 0
 }
 
-// ✅ FIXED: safeRunPass با try-catch داخلی برای جلوگیری از throw کردن error به بیرون
 async function safeRunPass(
   text: string,
   passNum: number,
@@ -50,12 +54,10 @@ async function safeRunPass(
   } catch (e: any) {
     const msg = e?.message || String(e)
     console.error(`[Pass${passNum}] error (non-fatal):`, msg)
-    // ✅ به جای throw، متن قبلی را برمی‌گردانیم
     return text
   }
 }
 
-// ✅ FIXED: processHumanize اگر همه پاس‌ها فیل بشن، حداقل متن اولیه را برمی‌گرداند
 async function processHumanize(
   userId: string,
   originalText: string,
@@ -78,7 +80,6 @@ async function processHumanize(
   return currentText
 }
 
-// ✅ FIXED: اضافه کردن try-catch کلی برای جلوگیری از crash
 export async function POST(req: NextRequest) {
   try {
     const supabase = createRouteHandlerClient({ cookies })
@@ -91,6 +92,7 @@ export async function POST(req: NextRequest) {
     }
 
     const userId = session.user.id
+    const userEmail = session.user.email || ""
     const body = await req.json()
     const { text } = body
 
@@ -109,13 +111,16 @@ export async function POST(req: NextRequest) {
     )
 
     if (!dbUser) {
+      // ✅ اگر ایمیل نامحدود باشه، tier رو unlimited می‌ذاریم
+      const initialTier = userEmail === UNLIMITED_EMAIL ? "unlimited" : "free"
+      
       dbUser = await retry(
         async () => {
           return await prisma.user.create({
             data: {
               id: userId,
-              email: session.user.email!,
-              tier: "free",
+              email: userEmail,
+              tier: initialTier,
             },
           })
         },
@@ -123,9 +128,23 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // ✅ اگر ایمیل نامحدود است اما tier هنوز unlimited نیست، آپدیت می‌کنیم
+    if (userEmail === UNLIMITED_EMAIL && dbUser.tier !== "unlimited") {
+      dbUser = await retry(
+        async () => {
+          return await prisma.user.update({
+            where: { id: userId },
+            data: { tier: "unlimited" },
+          })
+        },
+        { tag: "upgradeToUnlimited" },
+      )
+    }
+
     const tier = dbUser.tier as keyof typeof LIMITS
     const limit = LIMITS[tier] || LIMITS.free
 
+    // ✅ بررسی محدودیت‌ها (برای unlimited این چک‌ها رد می‌شن)
     if (wordCount > limit.perRequest) {
       return NextResponse.json(
         {
@@ -145,12 +164,11 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // ✅ کنترل همزمانی
+    // کنترل همزمانی
     await humanizeSemaphore.acquire()
 
     let humanized: string
     try {
-      // ✅ processHumanize اکنون دیگر error throw نمی‌کند
       humanized = await processHumanize(userId, text, tier)
     } finally {
       humanizeSemaphore.release()
@@ -188,7 +206,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ humanizedText: humanized })
   } catch (error: any) {
-    // ✅ لاگ می‌کنیم اما به کلاینت error کلی می‌دهیم
     console.error("[POST /api/humanize] Unexpected error:", error)
     return NextResponse.json(
       { error: "An unexpected error occurred. Please try again." },
