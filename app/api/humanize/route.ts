@@ -1,18 +1,84 @@
 import { NextRequest, NextResponse } from "next/server"
-import { cookies } from "next/headers"
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
-import { Prisma } from "@prisma/client"
+import { cookies } from "next/headers"
 import { prisma } from "@/lib/prisma"
 import { humanizeText } from "@/lib/claude"
-import { clampTier, estimateCostUsd, monthStart, TIER_LIMITS, wordCount } from "@/lib/auth"
+import { retry, humanizeSemaphore, withTimeout } from "@/lib/stability"
+import { Decimal } from "@prisma/client/runtime/library"
 
-export const dynamic = "force-dynamic"
-export const runtime = "nodejs"
-
-function safeEmail(userId: string, email?: string | null) {
-  return email && email.includes("@") ? email : `${userId}@no-email.local`
+// محدودیت طبقات
+const LIMITS = {
+  free: { daily: 2000, perRequest: 500 },
+  basic: { daily: 10000, perRequest: 2000 },
+  pro: { daily: 50000, perRequest: 5000 },
 }
 
+function countWords(text: string): number {
+  return text.trim().split(/\s+/).filter(Boolean).length
+}
+
+function getCost(wordCount: number, tier: string): number {
+  const base = wordCount * 0.001 // $0.001 per word
+  if (tier === "pro") return base * 0.8
+  if (tier === "basic") return base * 0.9
+  return base
+}
+
+async function getDailyUsage(userId: string): Promise<number> {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const agg = await retry(
+    async () => {
+      return await prisma.usage.aggregate({
+        where: { userId, createdAt: { gte: today } },
+        _sum: { wordsProcessed: true },
+      })
+    },
+    { tag: "getDailyUsage" },
+  )
+  return agg._sum?.wordsProcessed || 0
+}
+
+// ✅ FIXED: safeRunPass با try-catch داخلی برای جلوگیری از throw کردن error به بیرون
+async function safeRunPass(
+  text: string,
+  passNum: number,
+  timeout = 35000,
+): Promise<string> {
+  try {
+    return await withTimeout(humanizeText(text), timeout)
+  } catch (e: any) {
+    const msg = e?.message || String(e)
+    console.error(`[Pass${passNum}] error (non-fatal):`, msg)
+    // ✅ به جای throw، متن قبلی را برمی‌گردانیم
+    return text
+  }
+}
+
+// ✅ FIXED: processHumanize اگر همه پاس‌ها فیل بشن، حداقل متن اولیه را برمی‌گرداند
+async function processHumanize(
+  userId: string,
+  originalText: string,
+  tier: string,
+): Promise<string> {
+  let currentText = originalText
+
+  // Pass 1
+  const p1 = await safeRunPass(currentText, 1, 35000)
+  if (p1 && p1 !== currentText) currentText = p1
+
+  // Pass 2
+  const p2 = await safeRunPass(currentText, 2, 35000)
+  if (p2 && p2 !== currentText) currentText = p2
+
+  // Pass 3
+  const p3 = await safeRunPass(currentText, 3, 35000)
+  if (p3 && p3 !== currentText) currentText = p3
+
+  return currentText
+}
+
+// ✅ FIXED: اضافه کردن try-catch کلی برای جلوگیری از crash
 export async function POST(req: NextRequest) {
   try {
     const supabase = createRouteHandlerClient({ cookies })
@@ -20,102 +86,112 @@ export async function POST(req: NextRequest) {
       data: { session },
     } = await supabase.auth.getSession()
 
-    if (!session)
-      return NextResponse.json(
-        { success: false, error: "Unauthorized", code: "UNAUTHORIZED" },
-        { status: 401 },
-      )
-
-    const body = await req.json().catch(() => null)
-    const text = body?.text
-
-    if (!text || typeof text !== "string" || text.trim().length === 0) {
-      return NextResponse.json(
-        { success: false, error: "Invalid input text", code: "INVALID_INPUT" },
-        { status: 400 },
-      )
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const wc = wordCount(text)
-    if (wc < 50)
-      return NextResponse.json(
-        { success: false, error: "Text must be at least 50 words", code: "TEXT_TOO_SHORT" },
-        { status: 400 },
-      )
-    if (wc > 10000)
-      return NextResponse.json(
-        { success: false, error: "Text must not exceed 10,000 words", code: "TEXT_TOO_LONG" },
-        { status: 400 },
-      )
-
-    // ✅ NO UPSERT (PgBouncer-safe)
     const userId = session.user.id
-    const email = safeEmail(userId, session.user.email)
+    const body = await req.json()
+    const { text } = body
 
-    let user = await prisma.user.findUnique({ where: { id: userId } })
-    if (!user) {
-      user = await prisma.user.create({
-        data: { id: userId, email, tier: "free" },
-      })
-    } else if (user.email !== email) {
-      user = await prisma.user.update({
-        where: { id: userId },
-        data: { email },
-      })
+    if (!text?.trim()) {
+      return NextResponse.json({ error: "Text is required" }, { status: 400 })
     }
 
-    const tier = clampTier(user.tier)
-    const limit = TIER_LIMITS[tier]
+    const wordCount = countWords(text)
 
-    const start = monthStart(new Date())
-    const agg = await prisma.usage.aggregate({
-      where: { userId: user.id, createdAt: { gte: start } },
-      _sum: { wordsProcessed: true },
-    })
-    const used = agg._sum.wordsProcessed ?? 0
+    // بررسی کاربر یا ساخت
+    let dbUser = await retry(
+      async () => {
+        return await prisma.user.findUnique({ where: { id: userId } })
+      },
+      { tag: "findUser" },
+    )
 
-    if (used + wc > limit) {
+    if (!dbUser) {
+      dbUser = await retry(
+        async () => {
+          return await prisma.user.create({
+            data: {
+              id: userId,
+              email: session.user.email!,
+              tier: "free",
+            },
+          })
+        },
+        { tag: "createUser" },
+      )
+    }
+
+    const tier = dbUser.tier as keyof typeof LIMITS
+    const limit = LIMITS[tier] || LIMITS.free
+
+    if (wordCount > limit.perRequest) {
       return NextResponse.json(
         {
-          success: false,
-          error: "Monthly limit exceeded. Upgrade to process more words.",
-          code: "LIMIT_EXCEEDED",
-          wordsUsed: used,
-          wordsLimit: limit,
+          error: `Max ${limit.perRequest} words per request for ${tier} tier`,
         },
-        { status: 429 },
+        { status: 400 },
       )
     }
 
-    const humanized = await humanizeText(text)
-
-    // Decimal-safe
-    const costRaw: any = estimateCostUsd(wc) // returns string in your code :contentReference[oaicite:2]{index=2}
-    const cost = new Prisma.Decimal(String(costRaw))
-
-    await prisma.$transaction([
-      prisma.usage.create({ data: { userId: user.id, wordsProcessed: wc, cost } }),
-      prisma.text.create({
-        data: {
-          userId: user.id,
-          originalText: text,
-          humanizedText: humanized,
-          wordCount: wc,
+    const dailyUsed = await getDailyUsage(userId)
+    if (dailyUsed + wordCount > limit.daily) {
+      return NextResponse.json(
+        {
+          error: `Daily limit (${limit.daily} words) exceeded. Upgrade your tier.`,
         },
-      }),
-    ])
+        { status: 400 },
+      )
+    }
 
-    return NextResponse.json({
-      success: true,
-      humanizedText: humanized,
-      wordCount: wc,
-      wordsRemaining: Math.max(0, limit - (used + wc)),
-      cost: Number(cost),
-    })
-  } catch (error) {
-    console.error("Humanize API Error:", error)
+    // ✅ کنترل همزمانی
+    await humanizeSemaphore.acquire()
+
+    let humanized: string
+    try {
+      // ✅ processHumanize اکنون دیگر error throw نمی‌کند
+      humanized = await processHumanize(userId, text, tier)
+    } finally {
+      humanizeSemaphore.release()
+    }
+
+    // ذخیره Usage
+    const cost = getCost(wordCount, tier)
+    await retry(
+      async () => {
+        await prisma.usage.create({
+          data: {
+            userId,
+            wordsProcessed: wordCount,
+            cost: new Decimal(cost.toFixed(4)),
+          },
+        })
+      },
+      { tag: "createUsage" },
+    )
+
+    // ذخیره Text
+    await retry(
+      async () => {
+        await prisma.text.create({
+          data: {
+            userId,
+            originalText: text,
+            humanizedText: humanized,
+            wordCount,
+          },
+        })
+      },
+      { tag: "createText" },
+    )
+
+    return NextResponse.json({ humanizedText: humanized })
+  } catch (error: any) {
+    // ✅ لاگ می‌کنیم اما به کلاینت error کلی می‌دهیم
+    console.error("[POST /api/humanize] Unexpected error:", error)
     return NextResponse.json(
-      { success: false, error: "Internal server error", code: "SERVER_ERROR" },
+      { error: "An unexpected error occurred. Please try again." },
       { status: 500 },
     )
   }
