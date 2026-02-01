@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk"
 
-const MODEL = process.env.ANTHROPIC_MODEL || "claude-3-5-sonnet-20240620" // پیشنهاد من برای این کار Sonnet 3.5 یا Opus است
+const MODEL = process.env.ANTHROPIC_MODEL || "claude-3-5-sonnet-20240620" 
 
 function getClient() {
   const apiKey = process.env.ANTHROPIC_API_KEY
@@ -12,21 +12,38 @@ function getClient() {
 
 export async function humanizeText(text: string): Promise<string> {
   const prompt = `
-Act as a professional writer who is slightly tired and writing a quick but insightful email/memo to a close colleague. You HATE academic, robotic, and "perfect" AI writing. 
+You are NOT an AI assistant. You are a real person sharing your honest thoughts.
+Your task is to rewrite the provided text to bypass AI detection by making it sound like a passionate, slightly informal human discussion.
 
-Your task: Rewrite the provided text so it feels 100% human. 
+**CRITICAL INSTRUCTIONS TO BEAT DETECTION:**
 
-**RULES FOR THE "HUMAN" VIBE:**
-1. **The "Coffee Shop" Test:** Write like you're explaining this in a noisy coffee shop. Use sentence fragments. Start sentences with "So," "But," "Actually," or "Anyway."
-2. **Variable Sentence Velocity:** Use a mix of very short (3-5 words) and very long, rambling sentences with multiple commas or dashes. This creates "Burstiness."
-3. **Show, Don't Just Tell:** Instead of saying something is "important," say "it's the kind of thing that keeps you up at night" or "it's what actually matters here."
-4. **Kill the AI Cliches (CRITICAL):** If you use any of these words, the mission fails: 
-   - delve, tapestry, landscape, multifaceted, leverage, comprehensive, pivotal, underscores, realm, enhance, fostering, vibrant, nuanced, testament.
-   - Also, NO "In conclusion" or "Furthermore." Just end the text naturally.
-5. **Internal Monologue:** Occasionally include a brief "thinking out loud" moment in parentheses. e.g., (at least that's how I see it) or (ironic, right?).
-6. **Contractions & Low-Level Grammar:** Use "don't," "can't," "won't." It's okay to end a sentence with a preposition or use a slightly "loose" grammatical structure if it improves the flow.
+1. **LOWER THE READING LEVEL:** - Write at an 8th or 9th-grade reading level. 
+   - Use short, punchy words. Avoid academic fluff. 
+   - Instead of "utilize," use "use." Instead of "facilitate," use "help."
 
-**TECHNICAL GOAL:** Maximize Perplexity and Burstiness. Avoid all symmetrical paragraph structures. 
+2. **BREAK THE STRUCTURE:**
+   - **NO** Intro -> Body -> Conclusion format. Just dive straight into the point.
+   - **NO** Bullet points or numbered lists. (Humans rarely use them in flow text).
+   - **NO** Section Headers.
+   - Make paragraphs uneven. One huge paragraph followed by a single sentence paragraph.
+
+3. **USE "AGGRESSIVE" PERSONAL VOICE:**
+   - Use first-person perspective ("I", "We") even if the original text didn't.
+   - Express opinions strongly. Use words like "Honestly," "Look," "Here's the thing."
+   - Be direct. Cut the politeness.
+
+4. **BAN LIST (Instant Fail if used):**
+   - In conclusion, Moreover, Furthermore, Additionally, Firstly/Secondly.
+   - Delve, Tapestry, Landscape, Nuanced, Testament, Symphony, Embark, Unlock, Unleash, Elevate.
+   - Any phrase that sounds like a marketing brochure.
+
+5. **THE "HUMAN ERROR" SIMULATION:**
+   - Don't make typos, but use "loose" grammar. 
+   - Start sentences with "And" or "But".
+   - End sentences with prepositions (e.g., "that's what I'm talking about").
+   - Use contractions everywhere (don't, can't, won't, it's).
+
+Rewrite this text to sound like a blog post or a Reddit comment written by a human who cares about the topic but isn't trying to impress anyone.
 
 TEXT TO REWRITE:
 "${text}"
@@ -37,10 +54,8 @@ TEXT TO REWRITE:
   const response = await client.messages.create({
     model: MODEL,
     max_tokens: 2000,
-    // دما روی 0.9 برای خروج از حالت پیش‌فرض و ماشینی
-    temperature: 0.9,
-    // اضافه کردن top_p برای انتخاب کلمات غیرمنتظره‌تر
-    top_p: 0.95,
+    // دما رو کمی پایین‌تر میاریم تا "پرتی" ننویسه ولی همچنان طبیعی باشه
+    temperature: 0.85, 
     messages: [
       {
         role: "user",
@@ -49,7 +64,6 @@ TEXT TO REWRITE:
     ],
   })
 
-  // استخراج متن (با فرض اینکه تابع extractText را داری)
   const output = response.content[0].type === 'text' ? response.content[0].text : text
   return output
 }
