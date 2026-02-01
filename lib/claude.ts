@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk"
 
-const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514"
+const MODEL = process.env.ANTHROPIC_MODEL || "claude-opus-4-5-20251101"
 
 function getClient() {
   const apiKey = process.env.ANTHROPIC_API_KEY
@@ -61,6 +61,7 @@ Rewrite it like a real person would write it in one sitting. Go.
     const client = getClient()
     console.log("✅ Claude client created successfully")
     console.log("📝 Sending text to Claude (length:", text.length, "chars)")
+    console.log("🤖 Using model:", MODEL)
     
     const response = await client.messages.create({
       model: MODEL,
@@ -92,6 +93,7 @@ Rewrite it like a real person would write it in one sitting. Go.
     console.error("Error message:", error?.message)
     console.error("Error status:", error?.status)
     console.error("Error type:", error?.type)
+    console.error("Full error:", error)
     throw error
   }
 }
