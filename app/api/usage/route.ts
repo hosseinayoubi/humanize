@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
 function safeEmail(userId: string, email?: string | null) {
+  // ✅ هیچ‌وقت unknown@example.com برنگردون (unique می‌ترکونه)
   return email && email.includes("@") ? email : `${userId}@no-email.local`
 }
 
@@ -29,33 +30,39 @@ export async function GET() {
     const userId = session.user.id
     const email = safeEmail(userId, session.user.email)
 
-    // ✅ پایدارسازی عملیات DB (Pooler hiccup / prepared statement / ...)
-    const user = await retry(async () => {
-      let u = await prisma.user.findUnique({ where: { id: userId } })
-      if (!u) {
-        u = await prisma.user.create({ data: { id: userId, email, tier: "free" } })
-      } else if (u.email !== email) {
-        u = await prisma.user.update({ where: { id: userId }, data: { email } })
-      }
-      return u
-    }, { attempts: 4, baseDelayMs: 300, maxDelayMs: 4000 })
+    // ✅ user sync (pooler/pgbouncer safe + retry)
+    const user = await retry(
+      async () => {
+        let u = await prisma.user.findUnique({ where: { id: userId } })
+        if (!u) {
+          // id رو خودت میدی → با schema فعلی سازگاره
+          u = await prisma.user.create({ data: { id: userId, email, tier: "free" } })
+        } else if (u.email !== email) {
+          u = await prisma.user.update({ where: { id: userId }, data: { email } })
+        }
+        return u
+      },
+      { attempts: 4, baseDelayMs: 300, maxDelayMs: 4000 },
+    )
 
     const tier = clampTier(user.tier)
     const limit = TIER_LIMITS[tier]
 
-    const used = await retry(async () => {
-      const start = monthStart(new Date())
-      const agg = await prisma.usage.aggregate({
-        where: { userId: user.id, createdAt: { gte: start } },
-        _sum: { wordsProcessed: true },
-      })
-      return agg._sum.wordsProcessed ?? 0
-    }, { attempts: 3, baseDelayMs: 250, maxDelayMs: 3000 })
+    const used = await retry(
+      async () => {
+        const start = monthStart(new Date())
+        const agg = await prisma.usage.aggregate({
+          where: { userId: user.id, createdAt: { gte: start } },
+          _sum: { wordsProcessed: true },
+        })
+        return agg._sum.wordsProcessed ?? 0
+      },
+      { attempts: 3, baseDelayMs: 250, maxDelayMs: 3000 },
+    )
 
     const remaining = Math.max(0, limit - used)
     const pct = limit > 0 ? Math.round((used / limit) * 100) : 0
 
-    // ✅ no-store: جلوی cache عجیب Next/Vercel را می‌گیرد
     return NextResponse.json(
       {
         success: true,
