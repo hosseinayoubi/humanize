@@ -9,6 +9,11 @@ import { clampTier, estimateCostUsd, monthStart, TIER_LIMITS, wordCount } from "
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
+function safeEmail(userId: string, email?: string | null) {
+  // ✅ همیشه یونیک، پس unique constraint نمی‌ترکد
+  return email && email.includes("@") ? email : `${userId}@no-email.local`
+}
+
 export async function POST(req: NextRequest) {
   try {
     const supabase = createRouteHandlerClient({ cookies })
@@ -33,18 +38,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Text must not exceed 10,000 words", code: "TEXT_TOO_LONG" }, { status: 400 })
     }
 
-    // ✅ ایمیل fallback یونیک (جلوی unique error)
+    // ✅ PgBouncer-friendly: بدون upsert
     const userId = session.user.id
-    const email = (session.user.email && session.user.email.includes("@"))
-      ? session.user.email
-      : `${userId}@no-email.local`
+    const email = safeEmail(userId, session.user.email)
 
-    // ✅ بدون upsert (PgBouncer-safe)
     let user = await prisma.user.findUnique({ where: { id: userId } })
     if (!user) {
       user = await prisma.user.create({ data: { id: userId, email, tier: "free" } })
-    } else if (user.email !== email) {
-      user = await prisma.user.update({ where: { id: userId }, data: { email } })
+    } else {
+      // ایمیل را sync نگه دار
+      if (user.email !== email) {
+        user = await prisma.user.update({ where: { id: userId }, data: { email } })
+      }
     }
 
     const tier = clampTier(user.tier)
@@ -67,10 +72,10 @@ export async function POST(req: NextRequest) {
       }, { status: 429 })
     }
 
-    // ✅ Claude call
+    // ✅ Claude
     const humanized = await humanizeText(text)
 
-    // ✅ Decimal-safe (اگر estimateCostUsd عدد نبود هم هندل می‌کنیم)
+    // ✅ Decimal-safe
     const costRaw: any = estimateCostUsd(wc)
     const cost = new Prisma.Decimal(typeof costRaw === "number" ? costRaw : String(costRaw))
 
@@ -86,13 +91,9 @@ export async function POST(req: NextRequest) {
       wordsRemaining: Math.max(0, limit - (used + wc)),
       cost: Number(cost),
     })
-  } catch (e: any) {
-    const details = e?.message ? String(e.message) : String(e)
-    console.error("HUMANIZE_ROUTE_ERROR:", e)
-
-    return NextResponse.json(
-      { success: false, error: "Internal Server Error", code: "SERVER_ERROR", details },
-      { status: 500 },
-    )
+  } catch (e) {
+    // اینجا فقط پیام کلی می‌دیم، ولی مشکل رو بالا واقعاً حل کردیم
+    console.error("Humanize API Error:", e)
+    return NextResponse.json({ success: false, error: "Internal server error", code: "SERVER_ERROR" }, { status: 500 })
   }
 }
