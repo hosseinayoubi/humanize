@@ -29,14 +29,9 @@ export async function GET() {
 
     let user = await prisma.user.findUnique({ where: { id: userId } })
     if (!user) {
-      user = await prisma.user.create({
-        data: { id: userId, email, tier: "free" },
-      })
+      user = await prisma.user.create({ data: { id: userId, email, tier: "free" } })
     } else if (user.email !== email) {
-      user = await prisma.user.update({
-        where: { id: userId },
-        data: { email },
-      })
+      user = await prisma.user.update({ where: { id: userId }, data: { email } })
     }
 
     const tier = clampTier(user.tier)
@@ -50,7 +45,7 @@ export async function GET() {
 
     const used = agg._sum.wordsProcessed ?? 0
     const remaining = Math.max(0, limit - used)
-    const pct = limit > 0 ? Math.round((used / limit) * 100) : 0
+    const pct = Math.round((used / limit) * 100)
 
     return NextResponse.json({
       success: true,
