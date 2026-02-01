@@ -1,100 +1,77 @@
 import Anthropic from "@anthropic-ai/sdk"
 
-const anthropic = new Anthropic({
-  apiKey: process.env.CLAUDE_API_KEY!,
-})
+const MODEL = process.env.ANTHROPIC_MODEL || "claude-opus-4-5-20251101"
 
-export async function humanizeText(text: string) {
-  // 1) ANALYZE — سبک و لحن متن را بفهمد، نه بازنویسی کند
-  const analysis = await anthropic.messages.create({
-    model: "claude-3-5-sonnet-20241022",
-    max_tokens: 300,
-    messages: [
-      {
-        role: "user",
-        content: `
-Analyze the following English text briefly.
+function pickAllText(content: any): string {
+  if (!Array.isArray(content)) return ""
+  return content
+    .filter((b: any) => b?.type === "text" && typeof b.text === "string")
+    .map((b: any) => b.text)
+    .join("")
+    .trim()
+}
 
-Focus on:
-- tone (formal / neutral / casual)
-- clarity issues
-- stiffness or over-polished parts
+function isRetryableStatus(status: number | undefined) {
+  // 429 rate limit, 500+ server issues, 529 overload (رایج تو بعضی سرویس‌ها)
+  return status === 429 || status === 408 || status === 409 || status === 500 || status === 502 || status === 503 || status === 504 || status === 529
+}
 
-Do NOT rewrite the text.
-Be concise.
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms))
+}
 
-TEXT:
-${text}
-        `.trim(),
-      },
-    ],
-  })
+function getApiKey() {
+  const key = process.env.ANTHROPIC_API_KEY
+  if (!key || key.trim().length < 10) {
+    // این پیام رو عمداً واضح می‌ذاریم که بفهمی مشکل از ENVـه
+    throw new Error("Missing ANTHROPIC_API_KEY in environment variables.")
+  }
+  return key
+}
 
-  const analysisText =
-    analysis.content[0].type === "text"
-      ? analysis.content[0].text
-      : ""
+const anthropic = new Anthropic({ apiKey: getApiKey() })
 
-  // 2) REWRITE — بازنویسی اصلی، با حفظ صدا و نواقص انسانی
-  const rewrite = await anthropic.messages.create({
-    model: "claude-3-5-sonnet-20241022",
-    max_tokens: 2000,
-    messages: [
-      {
-        role: "user",
-        content: `
-Rewrite the following English text so it sounds natural, clear, and human-written.
+export async function humanizeText(text: string): Promise<string> {
+  const prompt =
+    "You are a professional English editor.\n" +
+    "Rewrite the text to sound natural, human, and fluent.\n" +
+    "- Keep the original meaning and key details.\n" +
+    "- Vary sentence lengths, avoid repetitive phrasing.\n" +
+    "- Use contractions where appropriate.\n" +
+    "- Preserve formatting (paragraphs, lists) as much as possible.\n" +
+    "Return ONLY the final rewritten text.\n\n" +
+    "TEXT:\n" + text
 
-STRICT RULES:
-- Keep my original voice and level of formality
-- Preserve meaning exactly
-- Avoid generic filler phrases
-- Avoid over-smoothing or robotic flow
-- Keep some minor imperfections if they exist
-- Prefer concrete nouns and specific wording
-- Do NOT exaggerate or overstate claims
-- Do NOT add new ideas or conclusions
+  // ✅ یک درخواست به‌جای 3 تا (ریسک fail پایین میاد)
+  const maxAttempts = 4
 
-Context about the original text:
-${analysisText}
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const res = await anthropic.messages.create({
+        model: MODEL,
+        max_tokens: 1800,
+        temperature: 0.7,
+        messages: [{ role: "user", content: prompt }],
+      })
 
-TEXT:
-${text}
-        `.trim(),
-      },
-    ],
-  })
+      const out = pickAllText(res.content)
+      return out || text
+    } catch (err: any) {
+      const status = err?.status || err?.response?.status
+      const msg = err?.message || String(err)
 
-  const rewrittenText =
-    rewrite.content[0].type === "text"
-      ? rewrite.content[0].text
-      : ""
+      // اگر retryable بود، چند بار تلاش کن
+      if (attempt < maxAttempts && isRetryableStatus(status)) {
+        // backoff: 0.8s, 1.6s, 3.2s ...
+        await sleep(800 * Math.pow(2, attempt - 1))
+        continue
+      }
 
-  // 3) POLISH — فقط تمیزکاری نهایی، نه صیقل بیش‌ازحد
-  const polish = await anthropic.messages.create({
-    model: "claude-3-5-sonnet-20241022",
-    max_tokens: 2000,
-    messages: [
-      {
-        role: "user",
-        content: `
-Lightly polish the following rewritten English text.
+      // خطای غیرقابل retry یا تلاش آخر
+      throw new Error(`Anthropic request failed (status=${status ?? "unknown"}): ${msg}`)
+    }
+  }
 
-Rules:
-- Improve readability only where needed
-- Do NOT make it sound fancy or academic unless it already is
-- Keep sentence length variation
-- Avoid perfect symmetry or overly balanced phrasing
-- Return ONLY the final text
-
-TEXT:
-${rewrittenText}
-        `.trim(),
-      },
-    ],
-  })
-
-  return polish.content[0].type === "text"
-    ? polish.content[0].text
-    : rewrittenText
+  // نباید برسیم اینجا
+  return text
 }
