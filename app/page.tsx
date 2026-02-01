@@ -4,16 +4,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 export default function HomePage() {
   return (
-    <main className="mx-auto max-w-5xl px-4 py-10 sm:py-14">
+    <main className="mx-auto max-w-5xl px-4 py-12 sm:py-16">
       {/* Top bar */}
-      <header className="mb-10 flex items-center justify-between">
+      <header className="mb-12 flex items-center justify-between">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2">
           <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border/60 bg-card/50 text-lg">
             ✨
           </span>
           <span className="text-sm font-semibold tracking-tight">
-            humanize <span className="text-muted-foreground font-normal">rewrite</span>
+            humanize{" "}
+            <span className="text-muted-foreground font-normal">rewrite</span>
           </span>
         </Link>
 
@@ -28,7 +29,8 @@ export default function HomePage() {
       </header>
 
       {/* Hero */}
-      <section className="grid gap-10 lg:grid-cols-2 lg:items-start">
+      <section className="grid gap-12 lg:grid-cols-2 lg:items-start">
+        {/* Left */}
         <div className="space-y-6">
           <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
             Rewrite English text
@@ -51,23 +53,39 @@ export default function HomePage() {
             </Button>
           </div>
 
-          {/* Minimal pricing (not cards) */}
-          <div className="rounded-xl border border-border/60 bg-card/40 p-4 text-sm">
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-              <div>
-                <span className="font-semibold">Free</span>{" "}
-                <span className="text-muted-foreground">5,000 words/month</span>
-              </div>
-              <div className="text-muted-foreground">•</div>
-              <div>
-                <span className="font-semibold">Pro</span>{" "}
-                <span className="text-muted-foreground">50,000 words/month</span>
-              </div>
-            </div>
+          {/* Free / Pro buttons */}
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button
+              className="
+                inline-flex items-center gap-2 rounded-full
+                border border-border/60 bg-card/50
+                px-4 py-2 text-sm font-medium
+                transition hover:bg-card/80
+              "
+            >
+              Free
+              <span className="text-xs text-muted-foreground">
+                5,000 words / month
+              </span>
+            </button>
+
+            <button
+              className="
+                inline-flex items-center gap-2 rounded-full
+                border border-primary/40 bg-primary/10
+                px-4 py-2 text-sm font-medium text-primary
+                transition hover:bg-primary/20
+              "
+            >
+              Pro
+              <span className="text-xs text-muted-foreground">
+                50,000 words / month
+              </span>
+            </button>
           </div>
         </div>
 
-        {/* Right: Simple workflow (3 compact cards) */}
+        {/* Right: workflow */}
         <div className="space-y-3">
           <StepCard
             title="Paste your text"
@@ -88,8 +106,8 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Tiny footer line */}
-      <footer className="mt-12 border-t border-border/50 pt-6 text-xs text-muted-foreground">
+      {/* Footer */}
+      <footer className="mt-14 border-t border-border/50 pt-6 text-xs text-muted-foreground">
         Simple, fast rewriting. No clutter.
       </footer>
     </main>
