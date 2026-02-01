@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk"
 
-const MODEL = process.env.ANTHROPIC_MODEL || "claude-3-opus-20240229" // مدل رو روی نسخه موجود تنظیم کردم
+const MODEL = process.env.ANTHROPIC_MODEL || "claude-3-5-sonnet-20240620" // پیشنهاد من برای این کار Sonnet 3.5 یا Opus است
 
 function getClient() {
   const apiKey = process.env.ANTHROPIC_API_KEY
@@ -10,51 +10,26 @@ function getClient() {
   return new Anthropic({ apiKey })
 }
 
-function extractText(content: any): string {
-  if (!Array.isArray(content)) return ""
-  return content
-    .filter((c: any) => c?.type === "text" && typeof c.text === "string")
-    .map((c: any) => c.text)
-    .join("")
-    .trim()
-}
-
 export async function humanizeText(text: string): Promise<string> {
-  // تغییـر اصـلی اینجـاست: پرامپت متمرکز بر Burstiness و Perplexity
   const prompt = `
-You are a ghostwriter tasked with rewriting the following text to bypass advanced AI detectors. 
-Your goal is to maximize "Perplexity" (complexity of text) and "Burstiness" (variation in sentence structure), while sounding like a distinct human voice.
+Act as a professional writer who is slightly tired and writing a quick but insightful email/memo to a close colleague. You HATE academic, robotic, and "perfect" AI writing. 
 
-**CORE INSTRUCTIONS:**
+Your task: Rewrite the provided text so it feels 100% human. 
 
-1. **Destroy the AI Rhythm:**
-   - AI writes in a steady beat. You must break it.
-   - Mix extremely long, convoluted sentences (that use em-dashes, semicolons, or parenthetical thoughts) with very short, punchy fragments.
-   - Example: "Ideally, this would work perfectly, but—and let's be honest here—it rarely does. Whatever."
+**RULES FOR THE "HUMAN" VIBE:**
+1. **The "Coffee Shop" Test:** Write like you're explaining this in a noisy coffee shop. Use sentence fragments. Start sentences with "So," "But," "Actually," or "Anyway."
+2. **Variable Sentence Velocity:** Use a mix of very short (3-5 words) and very long, rambling sentences with multiple commas or dashes. This creates "Burstiness."
+3. **Show, Don't Just Tell:** Instead of saying something is "important," say "it's the kind of thing that keeps you up at night" or "it's what actually matters here."
+4. **Kill the AI Cliches (CRITICAL):** If you use any of these words, the mission fails: 
+   - delve, tapestry, landscape, multifaceted, leverage, comprehensive, pivotal, underscores, realm, enhance, fostering, vibrant, nuanced, testament.
+   - Also, NO "In conclusion" or "Furthermore." Just end the text naturally.
+5. **Internal Monologue:** Occasionally include a brief "thinking out loud" moment in parentheses. e.g., (at least that's how I see it) or (ironic, right?).
+6. **Contractions & Low-Level Grammar:** Use "don't," "can't," "won't." It's okay to end a sentence with a preposition or use a slightly "loose" grammatical structure if it improves the flow.
 
-2. **Adopt a Subjective Persona:**
-   - Don't be neutral. Be opinionated, slightly skeptical, or enthusiastic.
-   - Use hedging words naturally: "I guess," "sort of," "probably," "in my experience."
-   - Write as if you are explaining this to a peer over coffee, not writing a textbook.
-
-3. **Vocabulary & Phrasing (CRITICAL):**
-   - **STRICTLY FORBIDDEN WORDS:** delve, tapestry, landscape, testament, leverage, intersection, fostering, nuanced, game-changer, symphony, comprehensive, realm, underscores, crucial, paramount, utilize, multifaceted.
-   - Use simple, Anglo-Saxon words instead of Latinate ones (e.g., use "do" instead of "execute", "help" instead of "facilitate").
-   - Include occasional filler words or conversational transitions: "Honestly," "Frankly," "Mind you," "Then again."
-
-4. **Structural Imperfections:**
-   - Start sentences with conjunctions (But, And, So, Or).
-   - Avoid standard transition words like "Moreover," "Furthermore," "In conclusion."
-   - Do NOT use headers, bullet points, or numbered lists unless absolutely necessary (turn lists into paragraphs).
-
-5. **The "Human" Touch:**
-   - It’s okay to be slightly repetitive for emphasis.
-   - It’s okay to have a minor grammatical looseness if it flows better conversationally.
-
-Rewrite the text below keeping the core meaning but completely changing the style to match the above constraints.
+**TECHNICAL GOAL:** Maximize Perplexity and Burstiness. Avoid all symmetrical paragraph structures. 
 
 TEXT TO REWRITE:
-${text}
+"${text}"
 `.trim()
 
   const client = getClient()
@@ -62,8 +37,10 @@ ${text}
   const response = await client.messages.create({
     model: MODEL,
     max_tokens: 2000,
-    // دما را بالا بردیم تا "خلاقیت" و "غیرقابل پیش‌بینی بودن" بیشتر شود
-    temperature: 0.75, 
+    // دما روی 0.9 برای خروج از حالت پیش‌فرض و ماشینی
+    temperature: 0.9,
+    // اضافه کردن top_p برای انتخاب کلمات غیرمنتظره‌تر
+    top_p: 0.95,
     messages: [
       {
         role: "user",
@@ -72,6 +49,7 @@ ${text}
     ],
   })
 
-  const output = extractText(response.content)
-  return output || text
+  // استخراج متن (با فرض اینکه تابع extractText را داری)
+  const output = response.content[0].type === 'text' ? response.content[0].text : text
+  return output
 }
