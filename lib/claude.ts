@@ -21,30 +21,38 @@ function extractText(content: any): string {
 
 export async function humanizeText(text: string): Promise<string> {
   const prompt = `
-Listen, I need you to rewrite this text and make it sound like an actual human wrote it. Not some AI trying to sound human - like genuinely human.
+Rewrite this text to sound completely human. Your goal is to make it undetectable by AI checkers while keeping roughly the same length as the original.
 
-Here's the vibe I'm going for:
+Write like you're having a conversation. Mix it up - throw in a short sentence. Then maybe a longer one that kinda meanders a bit. Then back to short. That's how real people write.
 
-Write like you're texting a friend or posting on Reddit. Mix short sentences with longer ones. Sometimes start with "And" or "But" because that's how people actually talk. Use contractions everywhere (don't, can't, it's, I'm).
+Use these human touches:
+- Contractions always (don't, can't, it's, I'm, you're)
+- Casual phrases: "honestly," "I mean," "you know what," "actually," "to be fair," "look"
+- Start sentences with "And" or "But" sometimes
+- Add side thoughts in parentheses (it's natural)
+- Use "..." when trailing off a thought
+- Throw in rhetorical questions now and then
 
-Throw in some casual phrases like "honestly," "I mean," "you know," "actually," or "to be honest." Add parentheses when you have a side thought (because that's what people do when they're writing casually). 
+Kill these AI red flags immediately:
+- NO: "Moreover," "Furthermore," "In addition," "In conclusion," "Firstly," "To summarize"
+- NO: "delve," "leverage," "robust," "comprehensive," "landscape," "tapestry," "pivotal," "unlock," "realm," "notion"
+- NO: perfectly balanced paragraphs or symmetrical structure
+- NO: bullet points or numbered lists
+- NO: overly formal transitions
 
-Don't be perfect. Let some sentences run a bit long. Use simple words - if you catch yourself using fancy vocabulary, swap it for something more everyday.
+Make it messy in a good way:
+- Repeat a word if it feels natural (people do that)
+- Use simple everyday words over fancy ones
+- Let sentences run long sometimes, then cut them short
+- Write like you're thinking out loud
+- Don't worry about being "proper" - be real
 
-Absolutely avoid these AI tells:
-- No "Moreover" or "Furthermore" or "In conclusion"
-- Skip words like "delve," "leverage," "robust," "comprehensive," "landscape," "tapestry"
-- Don't make lists with bullet points or numbers
-- No perfectly structured paragraphs with topic sentences
+Keep the length similar to the original text. Don't expand it or shrink it too much. Just make it sound human.
 
-Instead, just... flow. Like you're explaining something to someone while you're thinking it through. Maybe repeat yourself a bit. Maybe backtrack. That's human.
-
-Make it feel like a first draft that someone wrote in one go, not a polished essay. Real people don't write perfectly the first time.
-
-Here's the text:
+Original text:
 "${text}"
 
-Just rewrite it naturally. Don't overthink it.
+Rewrite it like a real person would write it in one sitting. Go.
 `.trim()
 
   const client = getClient()
