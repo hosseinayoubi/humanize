@@ -52,7 +52,10 @@ export async function POST(req: NextRequest) {
     } = await supabase.auth.getSession()
 
     if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" }, 
+        { status: 401 }
+      )
     }
 
     const userId = session.user.id
@@ -61,7 +64,10 @@ export async function POST(req: NextRequest) {
     const { text } = body
 
     if (!text?.trim()) {
-      return NextResponse.json({ error: "Text is required" }, { status: 400 })
+      return NextResponse.json(
+        { success: false, error: "Text is required" }, 
+        { status: 400 }
+      )
     }
 
     const wordCount = countWords(text)
@@ -112,6 +118,7 @@ export async function POST(req: NextRequest) {
     if (wordCount > limit.perRequest) {
       return NextResponse.json(
         {
+          success: false,
           error: `Max ${limit.perRequest} words per request for ${tier} tier`,
         },
         { status: 400 },
@@ -122,6 +129,7 @@ export async function POST(req: NextRequest) {
     if (dailyUsed + wordCount > limit.daily) {
       return NextResponse.json(
         {
+          success: false,
           error: `Daily limit (${limit.daily} words) exceeded. Upgrade your tier.`,
         },
         { status: 400 },
@@ -133,14 +141,20 @@ export async function POST(req: NextRequest) {
 
     let humanized: string
     try {
-      // ✅ فقط یه بار humanize می‌کنیم با timeout
+      console.log("🚀 Starting humanization...")
       humanized = await withTimeout(humanizeText(text), 35000)
+      console.log("✅ Humanization completed")
     } catch (e: any) {
       humanizeSemaphore.release()
       const msg = e?.message || String(e)
       console.error("❌ Humanize error:", msg)
+      console.error("Full error:", e)
       return NextResponse.json(
-        { error: "Failed to humanize text. Please try again." },
+        { 
+          success: false, 
+          error: "Failed to humanize text. Please try again.",
+          details: msg
+        },
         { status: 500 },
       )
     } finally {
@@ -177,16 +191,21 @@ export async function POST(req: NextRequest) {
       { tag: "createText" },
     )
 
-    return NextResponse.json({ humanizedText: humanized })
+    return NextResponse.json({ 
+      success: true, 
+      humanizedText: humanized 
+    })
   } catch (error: any) {
     console.error("❌ [POST /api/humanize] Unexpected error:", error)
-    console.error("Error details:", {
-      name: error?.name,
-      message: error?.message,
-      stack: error?.stack,
-    })
+    console.error("Error name:", error?.name)
+    console.error("Error message:", error?.message)
+    console.error("Error stack:", error?.stack)
     return NextResponse.json(
-      { error: "An unexpected error occurred. Please try again." },
+      { 
+        success: false, 
+        error: "An unexpected error occurred. Please try again.",
+        details: error?.message
+      },
       { status: 500 },
     )
   }
