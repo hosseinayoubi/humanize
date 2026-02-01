@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk"
 
-const MODEL = process.env.ANTHROPIC_MODEL || "claude-opus-4-5-20251101"
+const MODEL = process.env.ANTHROPIC_MODEL || "claude-3-opus-20240229" // مدل رو روی نسخه موجود تنظیم کردم
 
 function getClient() {
   const apiKey = process.env.ANTHROPIC_API_KEY
@@ -20,34 +20,58 @@ function extractText(content: any): string {
 }
 
 export async function humanizeText(text: string): Promise<string> {
+  // تغییـر اصـلی اینجـاست: پرامپت متمرکز بر Burstiness و Perplexity
   const prompt = `
-Rewrite the text below in a more academic, logically structured style while preserving the original meaning.
+You are a ghostwriter tasked with rewriting the following text to bypass advanced AI detectors. 
+Your goal is to maximize "Perplexity" (complexity of text) and "Burstiness" (variation in sentence structure), while sounding like a distinct human voice.
 
-Requirements:
-- Preserve facts and key details. Do not invent new facts.
-- Improve clarity, coherence, and argument flow.
-- Prefer precise wording; avoid vague phrasing.
-- Use cautious academic language where appropriate (e.g., "suggests", "may", "is likely") without excessive hedging.
-- Keep a natural human tone (not casual, not overly ornate). Vary sentence length without sounding mechanical.
-- No headings like "Conclusion" or "In summary." End naturally.
+**CORE INSTRUCTIONS:**
 
-Strictly avoid these words:
-delve, tapestry, landscape, testament, leverage, intersection, fostering, nuanced, game-changer, symphony, comprehensive, realm, underscores, crucial, paramount
+1. **Destroy the AI Rhythm:**
+   - AI writes in a steady beat. You must break it.
+   - Mix extremely long, convoluted sentences (that use em-dashes, semicolons, or parenthetical thoughts) with very short, punchy fragments.
+   - Example: "Ideally, this would work perfectly, but—and let's be honest here—it rarely does. Whatever."
 
-Return only the rewritten text.
+2. **Adopt a Subjective Persona:**
+   - Don't be neutral. Be opinionated, slightly skeptical, or enthusiastic.
+   - Use hedging words naturally: "I guess," "sort of," "probably," "in my experience."
+   - Write as if you are explaining this to a peer over coffee, not writing a textbook.
 
-TEXT:
+3. **Vocabulary & Phrasing (CRITICAL):**
+   - **STRICTLY FORBIDDEN WORDS:** delve, tapestry, landscape, testament, leverage, intersection, fostering, nuanced, game-changer, symphony, comprehensive, realm, underscores, crucial, paramount, utilize, multifaceted.
+   - Use simple, Anglo-Saxon words instead of Latinate ones (e.g., use "do" instead of "execute", "help" instead of "facilitate").
+   - Include occasional filler words or conversational transitions: "Honestly," "Frankly," "Mind you," "Then again."
+
+4. **Structural Imperfections:**
+   - Start sentences with conjunctions (But, And, So, Or).
+   - Avoid standard transition words like "Moreover," "Furthermore," "In conclusion."
+   - Do NOT use headers, bullet points, or numbered lists unless absolutely necessary (turn lists into paragraphs).
+
+5. **The "Human" Touch:**
+   - It’s okay to be slightly repetitive for emphasis.
+   - It’s okay to have a minor grammatical looseness if it flows better conversationally.
+
+Rewrite the text below keeping the core meaning but completely changing the style to match the above constraints.
+
+TEXT TO REWRITE:
 ${text}
 `.trim()
 
   const client = getClient()
 
-  const res = await client.messages.create({
+  const response = await client.messages.create({
     model: MODEL,
     max_tokens: 2000,
-    temperature: 0.35,
-    messages: [{ role: "user", content: prompt }],
+    // دما را بالا بردیم تا "خلاقیت" و "غیرقابل پیش‌بینی بودن" بیشتر شود
+    temperature: 0.75, 
+    messages: [
+      {
+        role: "user",
+        content: prompt,
+      },
+    ],
   })
 
-  return extractText(res.content) || text
+  const output = extractText(response.content)
+  return output || text
 }
