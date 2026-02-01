@@ -14,15 +14,14 @@ function safeEmail(userId: string, email?: string | null) {
 export async function PATCH(req: NextRequest) {
   try {
     const supabase = createRouteHandlerClient({ cookies })
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
+    const { data: { session } } = await supabase.auth.getSession()
 
-    if (!session)
+    if (!session) {
       return NextResponse.json(
         { success: false, error: "Unauthorized", code: "UNAUTHORIZED" },
         { status: 401 },
       )
+    }
 
     const body = await req.json().catch(() => null)
     const tier = clampTier(body?.tier)
