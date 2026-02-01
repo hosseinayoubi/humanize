@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       )
 
-    // (همون منطق فعلی شما)
+    // PgBouncer-friendly user creation (بدون upsert)
     const email = session.user.email ?? "unknown@example.com"
     const userId = session.user.id
 
