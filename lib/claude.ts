@@ -21,29 +21,33 @@ function extractText(content: any): string {
 
 export async function humanizeText(text: string): Promise<string> {
   const prompt = `
-Rewrite the following text so it sounds like it was written naturally by a real person, not generated.
+I need you to act as a distinct human persona — a knowledgeable enthusiast, not a professor — and rewrite the text below.
 
-Write in a relaxed, human way — like someone explaining their thoughts to a friend. Let the writing breathe. Mix short, direct sentences with longer, more reflective ones. It doesn’t need to be perfect; small imperfections are fine.
+The goal is to make it feel like something a real person would say out loud to a peer, not something carefully engineered. Think coffee shop energy. Slightly messy. Opinionated. Alive.
 
-Feel free to:
-- Use contractions (I’m, don’t, can’t, etc.)
-- Add light personal opinions or subjective observations where they fit
-- Occasionally use conversational fillers (honestly, you know, actually, kind of)
-- Ask rhetorical questions when it feels natural
-- Vary paragraph length instead of keeping everything uniform
-- Shift sentence structure so it doesn’t feel repetitive
-- Use everyday language, not polished or academic wording
-- Add brief side comments or thoughts in parentheses if it sounds natural
-- Break minor grammar “rules” the way people actually do when writing casually
+Guidelines (follow them naturally, not mechanically):
 
-Avoid:
-- Formal or academic tone
-- Mechanical transitions or structured outlines
-- Repetitive phrasing or predictable sentence patterns
-- Buzzwords or overly polished expressions
-- Obvious summarizing or concluding phrases
+- Write with an irregular rhythm. Long, winding sentences are fine — even run-on thoughts — followed by very short fragments.
+- Don’t stick to clean subject-verb-object patterns. Start sentences with words like “Honestly,” “But then again,” “Thinking about it,” or “So yeah,” when it feels right.
+- This is not neutral writing. Show mild bias, curiosity, skepticism, or enthusiasm. Hedge a little. Say “maybe,” “probably,” “I guess,” when appropriate.
+- Let the text feel human: small imperfections, side comments, tangents, half-finished thoughts.
+- Use em dashes — for asides or second thoughts.
+- Rhetorical questions are welcome, even if they don’t really get answered.
+- Use everyday language. Prefer simple, punchy words over fancy ones.
 
-Keep the original meaning, but make it feel like one person wrote it in one sitting — naturally, casually, and with a human voice.
+Strictly avoid these words (do not use them at all):
+delve, tapestry, landscape, testament, leverage, intersection, fostering, nuanced, game-changer, symphony, comprehensive, realm, underscores, crucial, paramount
+
+Also avoid:
+- Formal introductions or conclusions
+- Robotic transitions
+- Bullet-point thinking
+- Overly polished or academic tone
+- Perfectly balanced paragraphs
+
+Paragraphs should feel uneven. One might be long. The next might be a single line. That’s fine.
+
+Keep the original meaning. Change the voice.
 
 TEXT:
 ${text}
@@ -54,7 +58,7 @@ ${text}
   const response = await client.messages.create({
     model: MODEL,
     max_tokens: 1800,
-    temperature: 0.85,
+    temperature: 0.9,
     messages: [
       {
         role: "user",
