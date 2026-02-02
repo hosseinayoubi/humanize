@@ -9,7 +9,45 @@ export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
 function safeEmail(userId: string, email?: string | null) {
-  return email && email.includes("@") ? email : `${userId}@no-email.local`
+  // هیچ وقت unknown@example.com نذار (Unique می‌ترکونه)
+  return email && email.includes("@") ? email.toLowerCase() : `${userId}@no-email.local`
+}
+
+async function ensureUser(userId: string, email: string) {
+  return await retry(async () => {
+    // 1) اول با id
+    let u = await prisma.user.findUnique({ where: { id: userId } })
+    if (u) {
+      if (u.email !== email) {
+        // ممکنه ایمیل عوض شده باشه
+        u = await prisma.user.update({ where: { id: userId }, data: { email } })
+      }
+      return u
+    }
+
+    // 2) تلاش برای create
+    try {
+      return await prisma.user.create({ data: { id: userId, email, tier: "free" } })
+    } catch (e: any) {
+      // 3) اگر email قبلاً وجود داشت => id کاربر قدیمی رو به id جدید تغییر بده
+      if (e?.code === "P2002") {
+        await prisma.$transaction(async (tx) => {
+          // اگر رکوردی با این email هست، id اش رو با id جدید جایگزین کن
+          // FKها در migration ON UPDATE CASCADE هستند، پس usage/text هم درست می‌ماند
+          await tx.$executeRaw`
+            UPDATE "users"
+            SET "id" = ${userId}
+            WHERE "email" = ${email}
+          `
+        })
+
+        // بعد از update دوباره بخون
+        const fixed = await prisma.user.findUnique({ where: { id: userId } })
+        if (fixed) return fixed
+      }
+      throw e
+    }
+  }, { attempts: 4, baseDelayMs: 300, maxDelayMs: 4000, tag: "ensureUser" })
 }
 
 export async function GET() {
@@ -18,18 +56,16 @@ export async function GET() {
     const { data: { session } } = await supabase.auth.getSession()
 
     if (!session) {
-      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json(
+        { success: false, error: "Unauthorized", code: "UNAUTHORIZED" },
+        { status: 401 },
+      )
     }
 
     const userId = session.user.id
     const email = safeEmail(userId, session.user.email)
 
-    const user = await retry(async () => {
-      let u = await prisma.user.findUnique({ where: { id: userId } })
-      if (!u) u = await prisma.user.create({ data: { id: userId, email, tier: "free" } })
-      else if (u.email !== email) u = await prisma.user.update({ where: { id: userId }, data: { email } })
-      return u
-    }, { attempts: 4, baseDelayMs: 300, maxDelayMs: 4000 })
+    const user = await ensureUser(userId, email)
 
     const tier = clampTier(user.tier)
     const limit = TIER_LIMITS[tier]
@@ -41,27 +77,27 @@ export async function GET() {
         _sum: { wordsProcessed: true },
       })
       return agg._sum.wordsProcessed ?? 0
-    }, { attempts: 3, baseDelayMs: 250, maxDelayMs: 3000 })
+    }, { attempts: 3, baseDelayMs: 250, maxDelayMs: 3000, tag: "usageAgg" })
 
-    return NextResponse.json({
-      success: true,
-      tier,
-      wordsUsed: used,
-      wordsLimit: limit,
-      wordsRemaining: Math.max(0, limit - used),
-      resets: nextMonthStart(new Date()).toISOString(),
-    })
-  } catch (e: any) {
-    console.error("[GET /api/usage] ERROR:", e)
-
-    // ✅ در DEV جزئیات بده، در PROD نه
-    const details =
-      process.env.NODE_ENV !== "production"
-        ? (e?.message || String(e))
-        : undefined
+    const remaining = Math.max(0, limit - used)
+    const pct = limit > 0 ? Math.round((used / limit) * 100) : 0
 
     return NextResponse.json(
-      { success: false, error: "Usage failed.", details },
+      {
+        success: true,
+        tier,
+        wordsUsed: used,
+        wordsLimit: limit,
+        wordsRemaining: remaining,
+        percentageUsed: pct,
+        resets: nextMonthStart(new Date()).toISOString(),
+      },
+      { status: 200, headers: { "Cache-Control": "no-store, max-age=0" } },
+    )
+  } catch (error) {
+    console.error("[GET /api/usage] ERROR:", error)
+    return NextResponse.json(
+      { success: false, error: "Usage failed." },
       { status: 500 },
     )
   }
