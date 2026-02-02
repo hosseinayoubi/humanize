@@ -1,6 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 
+const MIN_WORDS = 50
+const MAX_WORDS = 500
+
 export default function TextComparison({
   input,
   output,
@@ -13,7 +16,9 @@ export default function TextComparison({
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <Card>
-        <CardHeader><CardTitle>Input</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>Input</CardTitle>
+        </CardHeader>
         <CardContent className="space-y-2">
           <Textarea
             value={input}
@@ -23,12 +28,16 @@ export default function TextComparison({
             autoComplete="off"
             spellCheck={false}
           />
-          <p className="text-xs text-muted-foreground">Tip: Use at least 50 words.</p>
+          <p className="text-xs text-muted-foreground">
+            Tip: Use {MIN_WORDS}–{MAX_WORDS} words for best results.
+          </p>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader><CardTitle>Output</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>Output</CardTitle>
+        </CardHeader>
         <CardContent className="space-y-2">
           <Textarea
             value={output}
@@ -37,7 +46,9 @@ export default function TextComparison({
             className="min-h-[260px]"
             spellCheck={false}
           />
-          <p className="text-xs text-muted-foreground">Copy the output with one click.</p>
+          <p className="text-xs text-muted-foreground">
+            Copy the output with one click.
+          </p>
         </CardContent>
       </Card>
     </div>
