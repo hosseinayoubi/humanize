@@ -1,99 +1,38 @@
-import Anthropic from "@anthropic-ai/sdk"
+import Anthropic from "@anthropic-ai/sdk";
 
-const MODEL = process.env.ANTHROPIC_MODEL || "claude-opus-4-5-20251101"
+const apiKey = process.env.ANTHROPIC_API_KEY;
+const model = process.env.ANTHROPIC_MODEL;
 
-function getClient() {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey || apiKey.trim().length < 10) {
-    console.error("❌ ANTHROPIC_API_KEY is missing or invalid!")
-    console.error("Current value:", apiKey ? `${apiKey.substring(0, 10)}...` : "undefined")
-    throw new Error("ANTHROPIC_API_KEY is missing in runtime environment.")
-  }
-  return new Anthropic({ apiKey })
+if (!apiKey) {
+  throw new Error("ANTHROPIC_API_KEY is not set");
 }
 
-function extractText(content: any): string {
-  if (!Array.isArray(content)) return ""
-  return content
-    .filter((c: any) => c?.type === "text" && typeof c.text === "string")
-    .map((c: any) => c.text)
-    .join("")
-    .trim()
+if (!model) {
+  throw new Error("ANTHROPIC_MODEL is not set");
 }
 
-export async function humanizeText(text: string): Promise<string> {
-  const prompt = `
-Rewrite this text to sound completely human. Your goal is to make it undetectable by AI checkers while keeping roughly the same length as the original.
+export const anthropic = new Anthropic({
+  apiKey,
+});
 
-Write like you're having a conversation. Mix it up - throw in a short sentence. Then maybe a longer one that kinda meanders a bit. Then back to short. That's how real people write.
+export async function humanizeText(input: string): Promise<string> {
+  const response = await anthropic.messages.create({
+    model, // ✅ فقط از ENV
+    max_tokens: 2048,
+    temperature: 0.8,
+    messages: [
+      {
+        role: "user",
+        content: input,
+      },
+    ],
+  });
 
-Use these human touches:
-- Contractions always (don't, can't, it's, I'm, you're)
-- Casual phrases: "honestly," "I mean," "you know what," "actually," "to be fair," "look"
-- Start sentences with "And" or "But" sometimes
-- Add side thoughts in parentheses (it's natural)
-- Use "..." when trailing off a thought
-- Throw in rhetorical questions now and then
+  const text = response.content?.[0];
 
-Kill these AI red flags immediately:
-- NO: "Moreover," "Furthermore," "In addition," "In conclusion," "Firstly," "To summarize"
-- NO: "delve," "leverage," "robust," "comprehensive," "landscape," "tapestry," "pivotal," "unlock," "realm," "notion"
-- NO: perfectly balanced paragraphs or symmetrical structure
-- NO: bullet points or numbered lists
-- NO: overly formal transitions
-
-Make it messy in a good way:
-- Repeat a word if it feels natural (people do that)
-- Use simple everyday words over fancy ones
-- Let sentences run long sometimes, then cut them short
-- Write like you're thinking out loud
-- Don't worry about being "proper" - be real
-
-Keep the length similar to the original text. Don't expand it or shrink it too much. Just make it sound human.
-
-Original text:
-"${text}"
-
-Rewrite it like a real person would write it in one sitting. Go.
-`.trim()
-
-  try {
-    const client = getClient()
-    console.log("✅ Claude client created successfully")
-    console.log("📝 Sending text to Claude (length:", text.length, "chars)")
-    console.log("🤖 Using model:", MODEL)
-    
-    const response = await client.messages.create({
-      model: MODEL,
-      max_tokens: 2500,
-      temperature: 1.0,
-      top_p: 0.95,
-      messages: [
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-    })
-
-    console.log("✅ Received response from Claude")
-    const output = extractText(response.content)
-    
-    if (!output) {
-      console.error("❌ No text extracted from Claude response")
-      console.error("Response content:", JSON.stringify(response.content))
-      return text
-    }
-    
-    console.log("✅ Successfully humanized text (output length:", output.length, "chars)")
-    return output
-  } catch (error: any) {
-    console.error("❌ Claude API Error:")
-    console.error("Error name:", error?.name)
-    console.error("Error message:", error?.message)
-    console.error("Error status:", error?.status)
-    console.error("Error type:", error?.type)
-    console.error("Full error:", error)
-    throw error
+  if (!text || text.type !== "text") {
+    throw new Error("Invalid response from Anthropic");
   }
+
+  return text.text;
 }
