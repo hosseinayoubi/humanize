@@ -6,9 +6,12 @@ import { Progress } from "@/components/ui/progress"
 import TextComparison from "@/components/text-comparison"
 import { toast } from "@/components/ui/toast"
 
+const MIN_WORDS = 50
+const MAX_WORDS = 500
+
 function countWords(text: string) {
   const t = text.trim()
-  return t ? t.split(/\s+/).length : 0
+  return t ? t.split(/\s+/).filter(Boolean).length : 0
 }
 
 export default function HumanizerForm() {
@@ -16,6 +19,7 @@ export default function HumanizerForm() {
   const [output, setOutput] = useState("")
   const [loading, setLoading] = useState(false)
   const [progress, setProgress] = useState(0)
+
   const words = useMemo(() => countWords(input), [input])
 
   async function copy() {
@@ -28,8 +32,13 @@ export default function HumanizerForm() {
   }
 
   async function onHumanize() {
-    if (words < 50) {
-      toast.error("Please provide at least 50 words of English text.")
+    if (words < MIN_WORDS) {
+      toast.error(`Please provide at least ${MIN_WORDS} words of English text.`)
+      return
+    }
+
+    if (words > MAX_WORDS) {
+      toast.error(`Too long. Please keep it under ${MAX_WORDS} words per request.`)
       return
     }
 
@@ -40,7 +49,10 @@ export default function HumanizerForm() {
     let timer: any = null
 
     try {
-      timer = setInterval(() => setProgress((p) => Math.min(95, p + Math.random() * 8)), 420)
+      timer = setInterval(
+        () => setProgress((p) => Math.min(95, p + Math.random() * 8)),
+        420,
+      )
 
       const res = await fetch("/api/humanize", {
         method: "POST",
@@ -50,11 +62,13 @@ export default function HumanizerForm() {
 
       const data = await res.json().catch(() => ({}))
 
-      clearInterval(timer)
+      if (timer) clearInterval(timer)
       setProgress(100)
 
       if (!res.ok || !data?.success) {
-        const msg = data?.details ? `${data?.error || "Humanization failed."}\n${data.details}` : (data?.error || "Humanization failed.")
+        const msg = data?.details
+          ? `${data?.error || "Humanization failed."}\n${data.details}`
+          : data?.error || "Humanization failed."
         toast.error(msg)
         return
       }
@@ -73,10 +87,16 @@ export default function HumanizerForm() {
   return (
     <div className="space-y-4">
       <TextComparison input={input} output={output} onInputChange={setInput} />
+
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="text-sm text-muted-foreground">
-          <span className="font-medium text-foreground">{words.toLocaleString()}</span> words
+          <span className="font-medium text-foreground">{words.toLocaleString()}</span>{" "}
+          words
+          <span className="ml-2 text-xs">
+            (min {MIN_WORDS}, max {MAX_WORDS})
+          </span>
         </div>
+
         <div className="flex items-center gap-2">
           <Button variant="secondary" onClick={copy} disabled={!output}>
             Copy output
