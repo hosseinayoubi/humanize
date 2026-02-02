@@ -10,34 +10,40 @@ export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
 function safeEmail(userId: string, email?: string | null) {
-  return email && email.includes("@") ? email.toLowerCase() : `${userId}@no-email.local`
+  // ✅ ایمیل نال/خالی -> ایمیل یکتا بساز تا unique نخوره
+  return email && email.includes("@")
+    ? email.toLowerCase()
+    : `${userId}@no-email.local`
 }
 
 async function ensureUser(userId: string, email: string) {
   return await retry(async () => {
-    let u = await prisma.user.findUnique({ where: { id: userId } })
-    if (u) {
-      if (u.email !== email) u = await prisma.user.update({ where: { id: userId }, data: { email } })
-      return u
-    }
-
-    try {
-      return await prisma.user.create({ data: { id: userId, email, tier: "free" } })
-    } catch (e: any) {
-      if (e?.code === "P2002") {
-        await prisma.$transaction(async (tx) => {
-          await tx.$executeRaw`
-            UPDATE "users"
-            SET "id" = ${userId}
-            WHERE "email" = ${email}
-          `
+    // 1) اول با id (بهترین حالت)
+    const byId = await prisma.user.findUnique({ where: { id: userId } })
+    if (byId) {
+      // اگر ایمیل تغییر کرده بود، آپدیت کن
+      if (byId.email !== email) {
+        return await prisma.user.update({
+          where: { id: userId },
+          data: { email },
         })
-
-        const fixed = await prisma.user.findUnique({ where: { id: userId } })
-        if (fixed) return fixed
       }
-      throw e
+      return byId
     }
+
+    // 2) اگر با id نبود، با email بگرد (اصلی‌ترین فیکس P2002)
+    const byEmail = await prisma.user.findUnique({ where: { email } })
+    if (byEmail) {
+      // ⚠️ این یعنی قبلاً کاربر با این ایمیل وجود داشته.
+      // ما اینجا به جای create کردن، همان user را برمی‌گردانیم.
+      // نتیجه: P2002 حذف می‌شود و همه‌ی usage/text ها روی همین user ذخیره می‌شوند.
+      return byEmail
+    }
+
+    // 3) اگر هیچکدوم نبود، create کن
+    return await prisma.user.create({
+      data: { id: userId, email, tier: "free" },
+    })
   }, { attempts: 4, baseDelayMs: 300, maxDelayMs: 4000, tag: "ensureUser" })
 }
 
@@ -61,6 +67,7 @@ async function getDailyUsage(userId: string) {
     where: { userId, createdAt: { gte: start } },
     _sum: { wordsProcessed: true },
   })
+
   return agg._sum.wordsProcessed ?? 0
 }
 
@@ -74,20 +81,28 @@ export async function POST(req: NextRequest) {
     const supabase = createRouteHandlerClient({ cookies })
     const { data: { session } } = await supabase.auth.getSession()
 
-    if (!session) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 },
+      )
+    }
 
     const body = await req.json().catch(() => null)
     const text = body?.text
 
     if (!text || typeof text !== "string" || text.trim().length === 0) {
-      return NextResponse.json({ success: false, error: "Invalid input text" }, { status: 400 })
+      return NextResponse.json(
+        { success: false, error: "Invalid input text" },
+        { status: 400 },
+      )
     }
 
-    const userId = session.user.id
-    const email = safeEmail(userId, session.user.email)
+    const authUserId = session.user.id
+    const email = safeEmail(authUserId, session.user.email)
 
-    // ✅ اینجا مشکل P2002 حل میشه
-    const dbUser = await ensureUser(userId, email)
+    // ✅ فیکس اصلی P2002
+    const dbUser = await ensureUser(authUserId, email)
 
     const tier = (dbUser.tier as keyof typeof LIMITS) || "free"
     const limit = LIMITS[tier] || LIMITS.free
@@ -96,15 +111,22 @@ export async function POST(req: NextRequest) {
 
     if (wordCount > limit.perRequest) {
       return NextResponse.json(
-        { success: false, error: `Max ${limit.perRequest} words per request for ${tier} tier` },
+        {
+          success: false,
+          error: `Max ${limit.perRequest} words per request for ${tier} tier`,
+        },
         { status: 400 },
       )
     }
 
+    // ⚠️ مهم: usage باید با همان dbUser.id حساب شود (نه authUserId)
     const dailyUsed = await getDailyUsage(dbUser.id)
     if (dailyUsed + wordCount > limit.daily) {
       return NextResponse.json(
-        { success: false, error: `Daily limit (${limit.daily} words) exceeded. Upgrade your tier.` },
+        {
+          success: false,
+          error: `Daily limit (${limit.daily} words) exceeded. Upgrade your tier.`,
+        },
         { status: 400 },
       )
     }
