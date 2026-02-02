@@ -9,45 +9,31 @@ export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
 function safeEmail(userId: string, email?: string | null) {
-  // هیچ وقت unknown@example.com نذار (Unique می‌ترکونه)
+  // همیشه یونیک بساز که به unique نخوره
   return email && email.includes("@") ? email.toLowerCase() : `${userId}@no-email.local`
 }
 
 async function ensureUser(userId: string, email: string) {
   return await retry(async () => {
     // 1) اول با id
-    let u = await prisma.user.findUnique({ where: { id: userId } })
-    if (u) {
-      if (u.email !== email) {
-        // ممکنه ایمیل عوض شده باشه
-        u = await prisma.user.update({ where: { id: userId }, data: { email } })
+    const byId = await prisma.user.findUnique({ where: { id: userId } })
+    if (byId) {
+      if (byId.email !== email) {
+        return await prisma.user.update({ where: { id: userId }, data: { email } })
       }
-      return u
+      return byId
     }
 
-    // 2) تلاش برای create
-    try {
-      return await prisma.user.create({ data: { id: userId, email, tier: "free" } })
-    } catch (e: any) {
-      // 3) اگر email قبلاً وجود داشت => id کاربر قدیمی رو به id جدید تغییر بده
-      if (e?.code === "P2002") {
-        await prisma.$transaction(async (tx) => {
-          // اگر رکوردی با این email هست، id اش رو با id جدید جایگزین کن
-          // FKها در migration ON UPDATE CASCADE هستند، پس usage/text هم درست می‌ماند
-          await tx.$executeRaw`
-            UPDATE "users"
-            SET "id" = ${userId}
-            WHERE "email" = ${email}
-          `
-        })
-
-        // بعد از update دوباره بخون
-        const fixed = await prisma.user.findUnique({ where: { id: userId } })
-        if (fixed) return fixed
-      }
-      throw e
+    // 2) اگر با id نبود، با email بگرد (حل P2002)
+    const byEmail = await prisma.user.findUnique({ where: { email } })
+    if (byEmail) {
+      // اگر قبلاً کاربر با این ایمیل هست، همون رو برگردون
+      return byEmail
     }
-  }, { attempts: 4, baseDelayMs: 300, maxDelayMs: 4000, tag: "ensureUser" })
+
+    // 3) اگر هیچکدوم نبود، create
+    return await prisma.user.create({ data: { id: userId, email, tier: "free" } })
+  }, { attempts: 4, baseDelayMs: 300, maxDelayMs: 4000 })
 }
 
 export async function GET() {
@@ -77,23 +63,20 @@ export async function GET() {
         _sum: { wordsProcessed: true },
       })
       return agg._sum.wordsProcessed ?? 0
-    }, { attempts: 3, baseDelayMs: 250, maxDelayMs: 3000, tag: "usageAgg" })
+    }, { attempts: 3, baseDelayMs: 250, maxDelayMs: 3000 })
 
     const remaining = Math.max(0, limit - used)
     const pct = limit > 0 ? Math.round((used / limit) * 100) : 0
 
-    return NextResponse.json(
-      {
-        success: true,
-        tier,
-        wordsUsed: used,
-        wordsLimit: limit,
-        wordsRemaining: remaining,
-        percentageUsed: pct,
-        resets: nextMonthStart(new Date()).toISOString(),
-      },
-      { status: 200, headers: { "Cache-Control": "no-store, max-age=0" } },
-    )
+    return NextResponse.json({
+      success: true,
+      tier,
+      wordsUsed: used,
+      wordsLimit: limit,
+      wordsRemaining: remaining,
+      percentageUsed: pct,
+      resets: nextMonthStart(new Date()).toISOString(),
+    })
   } catch (error) {
     console.error("[GET /api/usage] ERROR:", error)
     return NextResponse.json(
