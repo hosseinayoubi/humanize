@@ -1,6 +1,6 @@
+// lib/claude.ts
 import Anthropic from "@anthropic-ai/sdk";
-
-const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5-20250929";
+import { getTierConfig, type Tier } from "@/lib/config";
 
 function getClient(): Anthropic {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -90,15 +90,18 @@ Original text:
 "${text}"`;
 }
 
-export async function humanizeText(text: string): Promise<string> {
+export async function humanizeText(text: string, tier: Tier = "free"): Promise<string> {
   if (!text || text.trim().length === 0) {
     throw new Error("Input text is empty.");
   }
 
+  // مدل رو بر اساس tier از config بگیر
+  const model = process.env.ANTHROPIC_MODEL || getTierConfig(tier).model;
+
   const client = getClient();
 
   const response = await client.messages.create({
-    model: MODEL,
+    model,
     max_tokens: 2500,
     top_p: 0.95,
     messages: [
