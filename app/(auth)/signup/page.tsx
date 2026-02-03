@@ -1,9 +1,9 @@
+// app/(auth)/signup/page.tsx
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { toast } from "@/components/ui/toast"
@@ -29,26 +29,20 @@ function isRateLimitError(msg: string) {
 
 export default function SignupPage() {
   const router = useRouter()
-  const supabase = useMemo(() => createClientComponentClient(), [])
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
-
   const [cooldown, setCooldown] = useState(0)
 
-  // On mount: restore cooldown if user refreshed
   useEffect(() => {
     try {
       const raw = localStorage.getItem(LS_KEY)
       const last = raw ? Number(raw) : 0
       if (last > 0) setCooldown(toRemainingSeconds(last))
-    } catch {
-      // ignore
-    }
+    } catch {}
   }, [])
 
-  // Countdown ticker
   useEffect(() => {
     if (cooldown <= 0) return
     const t = setInterval(() => setCooldown((s) => Math.max(0, s - 1)), 1000)
@@ -58,43 +52,41 @@ export default function SignupPage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
 
-    // Hard block if still in cooldown
     if (cooldown > 0) {
       toast.error(`Please wait ${cooldown}s and try again.`)
       return
     }
 
-    // Start cooldown immediately to prevent double-click spam
     try {
       localStorage.setItem(LS_KEY, String(Date.now()))
-    } catch {
-      // ignore
-    }
+    } catch {}
     setCooldown(COOLDOWN_SECONDS)
 
     setLoading(true)
     try {
-      const { data, error } = await supabase.auth.signUp({ email, password })
-      if (error) throw error
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      })
 
-      // Supabase: if email confirmation is ON => session is usually null
-      if (!data.session) {
-        toast.success("Account created. Check your email to confirm.")
-        router.push("/login")
-      } else {
-        toast.success("Account created.")
-        router.push("/dashboard")
+      const data = await res.json().catch(() => ({}))
+
+      if (!res.ok || !data?.success) {
+        const msg = data?.error || "Sign up failed."
+        if (isRateLimitError(msg)) {
+          toast.error("Too many signup attempts. Please wait a few minutes and try again.")
+        } else {
+          toast.error(msg)
+        }
+        return
       }
 
+      toast.success("Account created. Check your email to confirm.")
+      router.push("/login")
       router.refresh()
     } catch (err: any) {
-      const msg = err?.message ?? "Sign up failed."
-
-      if (isRateLimitError(msg)) {
-        toast.error("Too many signup attempts. Please wait a few minutes and try again.")
-      } else {
-        toast.error(msg)
-      }
+      toast.error(err?.message ?? "Sign up failed.")
     } finally {
       setLoading(false)
     }
