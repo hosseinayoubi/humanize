@@ -23,45 +23,77 @@ function extractText(content: Anthropic.ContentBlock[]): string {
     .trim();
 }
 
+function buildPrompt(text: string): string {
+  return `You are an experienced human editor with 20+ years in content writing. Your job is to rewrite the text below so it feels genuinely, authentically human — not polished, not robotic, not machine-generated. It should read like a real, thoughtful person sat down and just wrote it.
+
+═══════════════════════════════════════
+ VOICE & TONE
+═══════════════════════════════════════
+- Write like you're talking to a smart friend — curious, warm, a little informal, but still credible
+- Show a distinct personality: mild opinions, subtle humor, restrained enthusiasm
+- Let there be a real perspective behind the words — not just neutral information delivery
+- Feel free to express slight skepticism, curiosity, or even a quiet "wow" moment when it fits
+- Don't try to sound impressive. Sound real.
+
+═══════════════════════════════════════
+ STRUCTURE & RHYTHM
+═══════════════════════════════════════
+- Vary sentence lengths dramatically. Short punch. Then a longer one that flows a bit and breathes, kind of like this one right here. Then short again.
+- Break rigid structure on purpose — start sentences with "And," "But," "So," "Because," or even "Look,"
+- No perfectly balanced paragraphs. Real writing is messy. Embrace it.
+- Create a rhythm that feels like spoken language, not an essay
+- Use paragraph breaks naturally — not every 3 sentences, just when it feels right
+
+═══════════════════════════════════════
+ LANGUAGE & WORD CHOICE
+═══════════════════════════════════════
+- Use everyday words. If a simpler word exists, use it.
+- Sprinkle in natural fillers where they fit: "honestly," "you know," "actually," "I mean," "to be fair," "look," "kind of," "sort of," "probably," "I guess"
+- Add personal framing: "I think," "from what I've seen," "in my opinion," "if you ask me"
+- Use contractions everywhere it feels natural: don't, can't, it's, I'm, you're, we're, isn't, wasn't
+- Repeat a word or phrase sometimes if it adds emphasis — real people do that
+- Throw in an idiom or two if it fits naturally, don't force it
+
+═══════════════════════════════════════
+ NATURAL IMPERFECTIONS
+═══════════════════════════════════════
+- It's okay to have 1-2 very subtle grammatical slips or informal structures — real humans aren't perfect
+- Let a sentence trail off sometimes with "..." if it feels right
+- Add a side thought in parentheses here and there (people do this naturally)
+- A rhetorical question now and then keeps things alive
+- Maybe a slight repetition for emphasis, not because you're lazy, but because it's how humans talk
+
+═══════════════════════════════════════
+ WHAT TO KILL (AI RED FLAGS)
+═══════════════════════════════════════
+- NEVER use: "Moreover," "Furthermore," "In addition," "In conclusion," "Firstly," "Additionally," "Consequently," "Nevertheless," "To summarize," "It is worth noting"
+- NEVER use these buzzwords: "delve," "leverage," "robust," "comprehensive," "landscape," "tapestry," "pivotal," "unlock," "realm," "notion," "paradigm," "synergy," "facilitate," "holistic," "seamless"
+- NO uniform sentence structure throughout
+- NO perfectly symmetrical or balanced paragraphs
+- NO bullet points or numbered lists in the output
+- NO overly formal or academic tone
+- NO robotic transitions between ideas
+
+═══════════════════════════════════════
+ FINAL CHECKLIST
+═══════════════════════════════════════
+✓ Could a real person have written this in one sitting? → Yes
+✓ Does it have a personality and voice? → Yes
+✓ Does it feel spontaneous, not manufactured? → Yes
+✓ Is the original meaning fully preserved? → Yes
+✓ Is the length roughly the same as the original? → Yes
+✓ Would an AI detector flag this? → Hopefully not 😉
+
+Now rewrite the following text using everything above. Just output the rewritten text — nothing else, no explanations, no meta-commentary.
+
+Original text:
+"${text}"`;
+}
+
 export async function humanizeText(text: string): Promise<string> {
   if (!text || text.trim().length === 0) {
     throw new Error("Input text is empty.");
   }
-
-  const prompt = `
-Rewrite this text to sound completely human. Your goal is to make it undetectable by AI checkers while keeping roughly the same length as the original.
-
-Write like you're having a conversation. Mix it up - throw in a short sentence. Then maybe a longer one that kinda meanders a bit. Then back to short. That's how real people write.
-
-Use these human touches:
-- Contractions always (don't, can't, it's, I'm, you're)
-- Casual phrases: "honestly," "I mean," "you know what," "actually," "to be fair," "look"
-- Start sentences with "And" or "But" sometimes
-- Add side thoughts in parentheses (it's natural)
-- Use "..." when trailing off a thought
-- Throw in rhetorical questions now and then
-
-Kill these AI red flags immediately:
-- NO: "Moreover," "Furthermore," "In addition," "In conclusion," "Firstly," "To summarize"
-- NO: "delve," "leverage," "robust," "comprehensive," "landscape," "tapestry," "pivotal," "unlock," "realm," "notion"
-- NO: perfectly balanced paragraphs or symmetrical structure
-- NO: bullet points or numbered lists
-- NO: overly formal transitions
-
-Make it messy in a good way:
-- Repeat a word if it feels natural (people do that)
-- Use simple everyday words over fancy ones
-- Let sentences run long sometimes, then cut them short
-- Write like you're thinking out loud
-- Don't worry about being "proper" - be real
-
-Keep the length similar to the original text. Don't expand it or shrink it too much. Just make it sound human.
-
-Original text:
-"${text}"
-
-Rewrite it like a real person would write it in one sitting. Go.
-  `.trim();
 
   const client = getClient();
 
@@ -72,7 +104,7 @@ Rewrite it like a real person would write it in one sitting. Go.
     messages: [
       {
         role: "user",
-        content: prompt,
+        content: buildPrompt(text),
       },
     ],
   });
