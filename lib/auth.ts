@@ -1,37 +1,21 @@
-export type Tier = "free" | "basic" | "pro"
+// lib/auth.ts
+import { APP_CONFIG, clampTier as _clampTier, type Tier, monthStart, nextMonthStart, wordCount, estimateCostUsd, getTierConfig } from "@/lib/config"
+
+export type { Tier }
 
 export const TIER_LIMITS: Record<Tier, number> = {
-  free: 5000,
-  basic: 50000,
-  pro: 200000,
+  free: APP_CONFIG.TIERS.free.monthlyWords,
+  basic: APP_CONFIG.TIERS.basic.monthlyWords,
+  pro: APP_CONFIG.TIERS.pro.monthlyWords,
 }
 
-export function clampTier(input: string | null | undefined): Tier {
-  if (input === "basic" || input === "pro" || input === "free") return input
-  return "free"
+export const PER_REQUEST_LIMITS: Record<Tier, number> = {
+  free: APP_CONFIG.TIERS.free.perRequestWords,
+  basic: APP_CONFIG.TIERS.basic.perRequestWords,
+  pro: APP_CONFIG.TIERS.pro.perRequestWords,
 }
 
-export function wordCount(text: string): number {
-  const t = (text ?? "").trim()
-  if (!t) return 0
-  return t.split(/\s+/).length
-}
+export const getModelForTier = (tier: Tier) => getTierConfig(tier).model
 
-export function monthStart(d = new Date()) {
-  const m = new Date(d)
-  m.setDate(1)
-  m.setHours(0, 0, 0, 0)
-  return m
-}
-
-export function nextMonthStart(d = new Date()) {
-  const m = monthStart(d)
-  m.setMonth(m.getMonth() + 1)
-  return m
-}
-
-// ✅ عدد برمی‌گرداند (برای Prisma Decimal امن‌تر)
-export function estimateCostUsd(words: number): number {
-  const cost = (words / 1000) * 1.2
-  return Math.round(cost * 10000) / 10000 // 4 decimals
-}
+export const clampTier = _clampTier
+export { monthStart, nextMonthStart, wordCount, estimateCostUsd }
