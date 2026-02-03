@@ -1,3 +1,4 @@
+// prisma/schema.prisma
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,7 +11,7 @@ datasource db {
 
 model User {
   id        String   @id
-  email     String   @unique
+  email     String?  @unique
   tier      String   @default("free")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -19,6 +20,7 @@ model User {
   texts     Text[]
 
   @@map("users")
+  @@index([tier])
 }
 
 model Usage {
@@ -31,6 +33,7 @@ model Usage {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([createdAt])
   @@map("usage")
 }
 
@@ -45,5 +48,6 @@ model Text {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([createdAt])
   @@map("texts")
 }
