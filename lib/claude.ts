@@ -1,14 +1,14 @@
+// lib/claude.ts
 import Anthropic from "@anthropic-ai/sdk"
+import type { Tier } from "@/lib/config"
+import { getTierConfig } from "@/lib/config"
 
-// ✅ پیش‌فرض دقیقاً همان مدلی که گفتی
-const DEFAULT_MODEL = "claude-sonnet-4-5-20250929"
-const MODEL = process.env.ANTHROPIC_MODEL || DEFAULT_MODEL
+const FALLBACK_MODEL = "claude-sonnet-4-5-20250929"
 
 function getClient() {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey || apiKey.trim().length < 10) {
     console.error("❌ ANTHROPIC_API_KEY is missing or invalid!")
-    console.error("Current value:", apiKey ? `${apiKey.substring(0, 10)}...` : "undefined")
     throw new Error("ANTHROPIC_API_KEY is missing in runtime environment.")
   }
   return new Anthropic({ apiKey })
@@ -23,8 +23,10 @@ function extractText(content: any): string {
     .trim()
 }
 
-export async function humanizeText(text: string): Promise<string> {
-  // ✅ پرامپت: طبیعی/انسانی‌تر شدن (بدون اشاره به bypass detector)
+export async function humanizeText(text: string, tier: Tier = "free"): Promise<string> {
+  const tierCfg = getTierConfig(tier)
+  const model = process.env.ANTHROPIC_MODEL || tierCfg.model || FALLBACK_MODEL
+
   const prompt = `
 Rewrite this text to sound natural and human, while keeping the meaning and roughly the same length.
 
@@ -41,43 +43,17 @@ Original text:
 Rewrite it as one cohesive text.
 `.trim()
 
-  try {
-    const client = getClient()
-    console.log("✅ Claude client created successfully")
-    console.log("📝 Sending text to Claude (length:", text.length, "chars)")
-    console.log("🤖 Using model:", MODEL)
+  const client = getClient()
 
-    const response = await client.messages.create({
-      model: MODEL,
-      max_tokens: 2500,
-      temperature: 1.0,
-      top_p: 0.95,
-      messages: [
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-    })
+  const response = await client.messages.create({
+    model,
+    max_tokens: 2500,
+    temperature: 1.0,
+    top_p: 0.95,
+    messages: [{ role: "user", content: prompt }],
+  })
 
-    console.log("✅ Received response from Claude")
-    const output = extractText(response.content)
-
-    if (!output) {
-      console.error("❌ No text extracted from Claude response")
-      console.error("Response content:", JSON.stringify(response.content))
-      return text
-    }
-
-    console.log("✅ Successfully humanized text (output length:", output.length, "chars)")
-    return output
-  } catch (error: any) {
-    console.error("❌ Claude API Error:")
-    console.error("Error name:", error?.name)
-    console.error("Error message:", error?.message)
-    console.error("Error status:", error?.status)
-    console.error("Error type:", error?.type)
-    console.error("Full error:", error)
-    throw error
-  }
+  const output = extractText(response.content)
+  if (!output) return text
+  return output
 }
