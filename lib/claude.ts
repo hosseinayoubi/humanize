@@ -24,63 +24,65 @@ function extractText(content: Anthropic.ContentBlock[]): string {
 }
 
 function buildPrompt(text: string): string {
-  return `You are an expert human editor. Rewrite the text below to sound natural, authentic, and genuinely human-written — the kind of writing that flows effortlessly and feels real, not manufactured by AI.
+  return `You are rewriting this text to sound completely human. Your goal: make it undetectable by AI detection tools while keeping the meaning intact.
 
-═══════════════════════════════════════
- CORE WRITING PRINCIPLES
-═══════════════════════════════════════
-• VARY RHYTHM: Mix short, punchy sentences with longer, flowing ones. Real writing has texture and breathing room, not uniformity.
-• NATURAL VOICE: Sound credible and thoughtful, but not stiff or overly formal. Think "smart conversation" not "academic paper."
-• ORGANIC FLOW: Let ideas connect naturally. Avoid mechanical transitions. If you need to shift topics, do it the way a person would — smoothly, without announcing it.
-• SUBTLE PERSONALITY: A hint of curiosity, mild enthusiasm, or quiet skepticism where it fits — but never forced or overdone.
+CRITICAL ANTI-AI-DETECTION RULES:
 
-═══════════════════════════════════════
- LANGUAGE GUIDELINES
-═══════════════════════════════════════
-✓ USE:
-- Everyday vocabulary (simple words over fancy ones)
-- Contractions where natural (don't, can't, it's, isn't, won't, they're)
-- Occasional conversational connectors: "actually," "honestly," "to be fair," "sure," "of course"
-- Sentence starters like "And," "But," "So," "Because" when it feels right
-- A parenthetical side note here and there (keeps it human)
+1. SENTENCE STRUCTURE CHAOS (This is KEY)
+   - NEVER write 3+ sentences in a row with similar length
+   - Alternate wildly: 4 words. Then 15-20 words. Then 8 words. Then 25+ words.
+   - Break expected patterns. If you wrote short-long-short, do NOT repeat that rhythm.
+   - Some sentences should feel almost too short. Others should meander a bit.
 
-✗ AVOID:
-- First-person overload: Don't constantly say "I think," "I believe," "in my opinion," "from what I've seen"
-  → Use these sparingly, only when the text genuinely calls for personal perspective
-- Robotic transitions: "Moreover," "Furthermore," "In addition," "Consequently," "Nevertheless," "In conclusion"
-- AI buzzwords: "delve," "leverage," "robust," "comprehensive," "landscape," "tapestry," "pivotal," "unlock," "realm," "notion," "paradigm," "synergy," "facilitate," "holistic," "seamless," "it's worth noting"
-- Perfect symmetry: Balanced paragraphs, uniform sentence length, or overly tidy structure
-- Excessive formality: Academic tone, jargon, or unnecessarily complex phrasing
+2. VOCABULARY UNPREDICTABILITY
+   - Use common words, but mix in unexpected word choices
+   - Avoid "obvious" synonyms that AI would pick
+   - Example: Instead of "important" → try "matters" or "counts" or just restructure
+   - Replace any word that feels "too perfect" for the context
+   - Use contractions inconsistently (some sentences yes, some no)
 
-═══════════════════════════════════════
- STRUCTURAL TECHNIQUES
-═══════════════════════════════════════
-• Break up monotony with varied sentence length
-• Use short sentences for impact. Let longer ones breathe and expand when needed.
-• Paragraph breaks should feel natural, not formulaic (not every 3 sentences)
-• Occasional repetition for emphasis is fine — that's how people write when they care about a point
-• A well-placed rhetorical question can keep things engaging
-• Trailing off with "..." works sometimes, but don't overdo it
+3. WORD CHOICE THAT SCREAMS HUMAN
+   ✓ USE: gonna, wanna, kinda, sorta, yeah, nope, stuff, things, bit, pretty (as in "pretty good"), way (as in "way better")
+   ✓ VAGUE LANGUAGE: something like, kind of, sort of, around, roughly, about
+   ✓ HUMAN CONNECTORS: though, still, anyway, besides, plus
+   ✓ CASUAL STARTS: "Look," "So," "And," "But," "Because," "Or," "Honestly," "Basically"
 
-═══════════════════════════════════════
- NATURAL IMPERFECTIONS (USE SPARINGLY)
-═══════════════════════════════════════
-Real humans aren't perfect. You can include:
-- 1-2 subtle informal structures (but not grammatical errors)
-- A slightly looser sentence here and there
-- Minor stylistic quirks that feel human, not sloppy
+4. FLOW DISRUPTIONS (Intentional "Imperfections")
+   - Start some sentences mid-thought (use dashes —)
+   - Throw in a super casual phrase randomly
+   - Add a one-word sentence occasionally. Like this.
+   - Use "..." when trailing off feels natural
+   - Include a (quick aside in parentheses) 
+   - Let some ideas run together with commas instead of periods
 
-═══════════════════════════════════════
- FINAL QUALITY CHECK
-═══════════════════════════════════════
-Before you finish, ask yourself:
-✓ Does this sound like a real person wrote it?
-✓ Is the tone natural and appropriate for the content?
-✓ Did I preserve the original meaning and key information?
-✓ Is the length roughly similar to the original?
-✓ Would this pass as genuine human writing?
+5. KILL THESE AI RED FLAGS IMMEDIATELY:
+   ❌ NEVER: "Moreover," "Furthermore," "Additionally," "Nevertheless," "Consequently," "Thus," "Hence," "Therefore," "In conclusion," "To summarize," "Notably," "Essentially," "It is important to note," "It should be noted"
+   ❌ BANNED WORDS: delve, leverage, robust, comprehensive, landscape, tapestry, pivotal, unlock, realm, notion, paradigm, synergy, multifaceted, intricate, nuanced (in AI contexts), facilitate, holistic, seamless, elevate, optimize, cutting-edge, game-changer, revolutionary
+   ❌ NO PERFECT PARALLEL STRUCTURE: If you list things, make them uneven
+   ❌ NO MECHANICAL TRANSITIONS: Never use formal bridges between ideas
 
-Now rewrite the following text. Output ONLY the rewritten version — no preamble, no explanation, no meta-commentary.
+6. EMBRACE NATURAL MESSINESS
+   - Repeat a word if it feels right (real people do this for emphasis)
+   - Double down on a point in a new sentence instead of moving on cleanly
+   - Let thoughts interrupt themselves
+   - Not every idea needs equal weight or perfect balance
+   - Some paragraphs can be 1 sentence. Others can be 5+.
+
+7. SENTENCE LENGTH TARGETS (approximate, vary wildly):
+   - 20% ultra-short (3-7 words)
+   - 30% short-medium (8-15 words) 
+   - 30% medium-long (16-25 words)
+   - 20% long, winding sentences (25+ words)
+
+8. FINAL DETECTOR-KILLER TECHNIQUES:
+   - Swap out any phrase that sounds "writerly" or polished
+   - If a sentence sounds like it could be in a textbook, rewrite it
+   - Read it out loud in your head — does it sound like a person talking? If not, fix it.
+   - Check: Are any 3 consecutive sentences too similar in structure? Break the pattern.
+
+REMEMBER: Real humans are inconsistent, slightly messy, and unpredictable. Perfect writing is AI writing. Imperfect (but clear) writing is human writing.
+
+Now rewrite this text. Keep the same meaning and length, but make it sound like a real person wrote it casually, without overthinking.
 
 Original text:
 "${text}"`;
@@ -99,7 +101,7 @@ export async function humanizeText(text: string, tier: Tier = "free"): Promise<s
   const response = await client.messages.create({
     model,
     max_tokens: 2500,
-    top_p: 0.95,
+    temperature: 0.9, // بالاتر برای خلاقیت بیشتر و فرار از pattern های AI
     messages: [
       {
         role: "user",
